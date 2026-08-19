@@ -233,7 +233,9 @@ it.
 Hand annotation is safe. The editor and the rename popup rewrite this file in
 full, but comments, blank lines and keys the plugin does not recognise are
 kept verbatim: anything above the first line it recognises stays at the top,
-and everything else is written back after the workspace rows.
+and everything else is written back after the workspace rows. Content always
+survives; only position can shift, so a comment sitting between two workspace
+rows reappears below them rather than where you put it.
 
 ## What it writes
 
