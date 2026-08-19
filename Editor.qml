@@ -114,16 +114,11 @@ PanelWindow {
     win.errorText = problem
     if (problem !== "" || !widget) return
 
-    if (win.centerBar !== win.centerBarLoaded) {
-      win.centerMoved = widget.setBarCentered(win.centerBar, win.centerMoved)
-      win.centerBarLoaded = win.centerBar
-    }
-
     widget.saveConf(widget.buildConf(win.rows, {
       rename: win.renameKey,
       jump: win.jumpKey,
       editor: win.editorKey,
-      center: win.centerBar,
+      center: win.centerBarLoaded,
       centermoved: win.centerMoved,
       icons: win.iconCount,
       style: win.barStyle,
@@ -449,7 +444,37 @@ PanelWindow {
     }
   }
 
-  function close() { win.visible = false }
+  function close() {
+    win.visible = false
+    win.applyBarLayout()
+  }
+
+  // Rearranging the bar makes the shell rebuild it, which tears this window
+  // down with it — so it waits until the window is going away anyway. The
+  // setting is still saved the moment it is clicked; only the rearranging
+  // is held back.
+  function applyBarLayout() {
+    if (!widget || win.centerBar === win.centerBarLoaded) return
+    win.centerMoved = widget.setBarCentered(win.centerBar, win.centerMoved)
+    win.centerBarLoaded = win.centerBar
+    widget.saveConf(widget.buildConf(win.rows, {
+      rename: win.renameKey,
+      jump: win.jumpKey,
+      editor: win.editorKey,
+      center: win.centerBarLoaded,
+      centermoved: win.centerMoved,
+      icons: win.iconCount,
+      style: win.barStyle,
+      base: win.countFromZero ? "0" : "1",
+      compact: win.compactNames,
+      number: win.showNumbers,
+      delim: win.delimiter,
+      coloractive: win.colorActive,
+      colorunfocused: win.colorUnfocused,
+      coloroccupied: win.colorOccupied,
+      colorempty: win.colorEmpty
+    }))
+  }
 
   // A click on another monitor moves Hyprland's focus there but never reaches
   // this surface, which only covers the screen it opened on — so watch for the
@@ -676,9 +701,10 @@ PanelWindow {
           }
 
           Text {
-            text: win.centerBar
+            text: (win.centerBar
               ? "Widgets that were centered sit on the right; unticking puts them back."
-              : "Workspaces sit on the left. Ticking moves them to the center and pushes the centered widgets to the right."
+              : "Workspaces sit on the left. Ticking moves them to the center and pushes the centered widgets to the right.")
+              + (win.centerBar !== win.centerBarLoaded ? "  The bar rearranges when you close this window." : "")
             color: win.dim
             font.family: Style.font.family
             font.pixelSize: Style.font.body - 2
@@ -937,6 +963,7 @@ PanelWindow {
 
           TextInput {
             id: delimInput
+            maximumLength: 1
             anchors.fill: parent
             anchors.leftMargin: 8
             anchors.rightMargin: 8
@@ -953,7 +980,7 @@ PanelWindow {
         }
 
         Text {
-          text: "Sits between the number and the name — “0" + win.delimiter + " MLStudios”. Display only; it is not stored in either field."
+          text: "A single character between the number and the name — “0" + win.delimiter + " MLStudios”. Display only; it is not stored in either field."
           color: win.dim
           font.family: Style.font.family
           font.pixelSize: Style.font.body - 2
@@ -1112,6 +1139,45 @@ PanelWindow {
       Item {
         visible: win.tab === "settings"
         Layout.fillHeight: true
+      }
+
+      Rectangle {
+        visible: win.tab === "workspaces"
+        Layout.fillWidth: true
+        height: 1
+        color: win.line
+      }
+
+      // Column headers, widths kept in step with the row delegate below.
+      RowLayout {
+        visible: win.tab === "workspaces"
+        Layout.fillWidth: true
+        Layout.bottomMargin: 2
+        spacing: 10
+
+        Repeater {
+          model: [
+            { title: "No.", width: 54 },
+            { title: "Name", width: 200 },
+            { title: "Monitor", width: 130 },
+            { title: "Hotkey", width: 200 },
+            { title: "Pinned apps", width: -1 },
+            { title: "", width: 26 },
+            { title: "", width: 26 }
+          ]
+
+          Text {
+            required property var modelData
+            text: modelData.title
+            color: win.dim
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body - 3
+            font.capitalization: Font.AllUppercase
+            elide: Text.ElideRight
+            Layout.preferredWidth: modelData.width > 0 ? modelData.width : 0
+            Layout.fillWidth: modelData.width < 0
+          }
+        }
       }
 
       Rectangle {

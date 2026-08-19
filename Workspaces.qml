@@ -155,7 +155,10 @@ BarWidget {
     root.countFromZero = settings.base === "0"
     root.compactNames = settings.compact === "true"
     root.showNumbers = settings.number !== "false"
-    root.delimiter = settings.delim === "" ? ":" : settings.delim
+    // One character. A longer value in a hand-edited config is trimmed to
+    // its first rather than refused, and an empty one falls back to the
+    // default so the number never runs straight into the name.
+    root.delimiter = settings.delim === "" ? ":" : settings.delim.charAt(0)
     root.colorActive = settings.coloractive
     root.colorUnfocused = settings.colorunfocused
     root.colorOccupied = settings.coloroccupied
