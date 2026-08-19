@@ -13,9 +13,8 @@ by hand-editing config.
 
 - Omarchy 4.0 or newer (the Quickshell shell — this is not a Waybar module)
 - Hyprland 0.56+ with the Lua config format
-- `jq`, which Omarchy already installs. Only the finder's cursor warp uses
-  it, and it fails quietly without it: focus still moves, the pointer just
-  stays where it was.
+- `jq`, used by the finder's cursor warp. Omarchy itself depends on it, so a
+  working install already has it.
 
 ## Install
 
@@ -320,10 +319,11 @@ Saving in the editor also runs `hyprctl reload` and applies workspace names,
 monitor assignments and pinned-app window moves to the running session.
 
 One further runtime change, which touches no file: at startup the plugin
-defines a Hyprland submap named `omarchy-workspace-manager-capture`, and switches into it
-only while a hotkey box is listening. That is what suspends your bindings
-long enough to capture a combination that is already bound; it is left the
-moment capture ends, and it disappears with the compositor's next reload.
+defines a Hyprland submap named `omarchy-workspace-manager-capture`, and
+switches into it only while a hotkey box is listening. That is what suspends
+your bindings long enough to capture a combination that is already bound; it
+is left the moment capture ends, and it disappears with the compositor's next
+reload.
 
 All of the above are live compositor actions, not file changes. Nothing is
 written to disk beyond the two files above.
