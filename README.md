@@ -204,13 +204,14 @@ what you are naming.
 ## Fuzzy finder
 
 The jump hotkey opens a two-level tree: workspaces, with their windows nested
-one level in. Each workspace row carries its monitor and its hotkey as pills. Typing filters it
-and ranks best match first; every space-separated term has to match, in any
-order, so `dr chr` finds *Google Drive — Chromium*. Where a workspace and a
-window match equally well — a workspace called Signal and the Signal window —
-the window wins, since the workspace has a hotkey of its own. Enter on a workspace goes
-there; Enter on a window focuses it across monitors and warps the pointer to
-its center, so hover focus does not snap back. Esc closes.
+one level in. Each workspace row carries its monitor and its hotkey as pills.
+Typing filters it and ranks best match first; every space-separated term has
+to match, in any order, so `dr chr` finds *Google Drive — Chromium*. Where a
+workspace and a window match equally well — a workspace called Signal and the
+Signal window — the window wins, since the workspace has a hotkey of its own.
+Enter on a workspace goes there; Enter on a window focuses it across monitors
+and warps the pointer to its center, so hover focus does not snap back. Esc
+closes.
 
 ## Application pinning
 
