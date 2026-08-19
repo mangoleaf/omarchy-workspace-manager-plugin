@@ -22,6 +22,7 @@ PanelWindow {
   property bool centerBarLoaded: false
   property string centerMoved: ""
   property string tab: "workspaces"
+  property bool showHelp: false
   property int iconCount: 3
   property string barStyle: "plain"
   property bool countFromZero: false
@@ -587,6 +588,34 @@ PanelWindow {
         }
 
         Item { Layout.fillWidth: true }
+
+        // The explanation is a page of text that is worth reading once and
+        // then never again, so it hides behind this rather than sitting
+        // above the table forever.
+        Rectangle {
+          visible: win.tab === "workspaces"
+          Layout.preferredWidth: 20
+          Layout.preferredHeight: 20
+          radius: 10
+          color: win.showHelp ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.15) : "transparent"
+          border.color: win.showHelp ? win.fg : win.line
+          border.width: 1
+
+          Text {
+            anchors.centerIn: parent
+            text: "i"
+            color: win.showHelp ? win.fg : win.dim
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body - 1
+            font.bold: true
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: win.showHelp = !win.showHelp
+          }
+        }
       }
 
       // Shown only until Hyprland is wired up. Without it the widget draws
@@ -654,7 +683,7 @@ PanelWindow {
       }
 
       Text {
-        visible: win.tab === "workspaces"
+        visible: win.tab === "workspaces" && win.showHelp
         text: "Everything here saves as you change it — Esc closes. Click a number, name or monitor to edit it; “Any monitor” leaves a workspace free to open wherever focus is. Click a hotkey and press the combination you want: your existing bindings are suspended while it listens, so a key that is already taken still records, and SUPER is implied on workspace rows. “+” pins an app so it always opens on that workspace, a tag can be dragged to another workspace to move the pin, and “✕” unpins it — a pinned app's open windows follow. A workspace can only be deleted once its windows have moved elsewhere."
         color: win.dim
         font.family: Style.font.family
