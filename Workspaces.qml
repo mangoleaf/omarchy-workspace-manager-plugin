@@ -43,6 +43,25 @@ BarWidget {
   // touched — a name that happens to contain another one keeps it.
   property bool compactNames: false
 
+  // The number is its own field, not part of the name, so it can be hidden
+  // without editing every workspace. On by default.
+  property bool showNumbers: true
+
+  // Prefix and name are stored apart; this is the only place they are joined.
+  function composeLabel(prefix, name) {
+    var p = String(prefix === undefined ? "" : prefix)
+    var n = String(name === undefined ? "" : name)
+    if (!root.showNumbers) return n !== "" ? n : p
+    if (p === "") return n
+    if (n === "") return p
+    return root.compactNames ? p + ":" + n : p + ": " + n
+  }
+
+  function rowById(id) {
+    for (var i = 0; i < root.rows.length; i++) if (root.rows[i].id === id) return root.rows[i]
+    return null
+  }
+
   function compactLabel(label) {
     var text = String(label)
     var at = text.indexOf(":")
@@ -81,7 +100,7 @@ BarWidget {
   function loadConf(t) {
     var out = []
     var settings = {
-      rename: "", jump: "", editor: "", center: "", centermoved: "", icons: "", style: "", base: "", compact: "",
+      rename: "", jump: "", editor: "", center: "", centermoved: "", icons: "", style: "", base: "", compact: "", number: "",
       coloractive: "", colorunfocused: "", coloroccupied: "", colorempty: ""
     }
     var header = []
@@ -96,7 +115,18 @@ BarWidget {
     for (var i = 0; i < lines.length; i++) {
       var p = lines[i].split("|")
       if (p.length >= 4 && /^\d+$/.test(p[0])) {
-        out.push({ id: parseInt(p[0]), key: p[1], monitor: p[2], label: p[3], apps: p.length >= 5 ? p[4] : "" })
+        var name = p[3]
+        var prefix = p.length >= 6 ? p[5] : null
+
+        // Migration: before the split, field 4 held prefix and name together
+        // as "0: MLStudios". A bare "4" or "LA" is a prefix with no name.
+        if (prefix === null) {
+          var at = name.indexOf(":")
+          if (at === -1) { prefix = name; name = "" }
+          else { prefix = name.substring(0, at); name = name.substring(at + 1).replace(/^ +/, "") }
+        }
+
+        out.push({ id: parseInt(p[0]), key: p[1], monitor: p[2], label: name, apps: p.length >= 5 ? p[4] : "", prefix: prefix })
         seenKnown = true
       } else if (p.length >= 2 && settings[p[0]] !== undefined) {
         settings[p[0]] = p.slice(1).join("|")
@@ -120,6 +150,7 @@ BarWidget {
     root.barStyle = settings.style === "" ? "plain" : settings.style
     root.countFromZero = settings.base === "0"
     root.compactNames = settings.compact === "true"
+    root.showNumbers = settings.number !== "false"
     root.colorActive = settings.coloractive
     root.colorUnfocused = settings.colorunfocused
     root.colorOccupied = settings.coloroccupied
@@ -139,6 +170,7 @@ BarWidget {
       style: root.barStyle,
       base: root.countFromZero ? "0" : "1",
       compact: root.compactNames,
+      number: root.showNumbers,
       coloractive: root.colorActive,
       colorunfocused: root.colorUnfocused,
       coloroccupied: root.colorOccupied,
@@ -157,12 +189,14 @@ BarWidget {
     lines.push("style|" + s.style)
     lines.push("base|" + s.base)
     lines.push("compact|" + (s.compact ? "true" : "false"))
+    lines.push("number|" + (s.number ? "true" : "false"))
     if (s.coloractive !== "") lines.push("coloractive|" + s.coloractive)
     if (s.colorunfocused !== "") lines.push("colorunfocused|" + s.colorunfocused)
     if (s.coloroccupied !== "") lines.push("coloroccupied|" + s.coloroccupied)
     if (s.colorempty !== "") lines.push("colorempty|" + s.colorempty)
     for (var i = 0; i < rows.length; i++)
-      lines.push(rows[i].id + "|" + rows[i].key + "|" + rows[i].monitor + "|" + rows[i].label + "|" + rows[i].apps)
+      lines.push(rows[i].id + "|" + rows[i].key + "|" + rows[i].monitor + "|" + rows[i].label
+        + "|" + rows[i].apps + "|" + (rows[i].prefix === undefined ? "" : rows[i].prefix))
     return lines.concat(root.confFooter).join("\n") + "\n"
   }
 
@@ -242,8 +276,11 @@ BarWidget {
   // The config is the authority on names — a workspace that does not exist
   // yet still has one, and that is what a freshly added workspace shows.
   function labelFor(id) {
-    for (var i = 0; i < root.rows.length; i++)
-      if (root.rows[i].id === id && root.rows[i].label !== "") return root.compactLabel(root.rows[i].label)
+    var row = root.rowById(id)
+    if (row) {
+      var composed = root.composeLabel(row.prefix, row.label)
+      if (composed !== "") return composed
+    }
 
     var live = root.workspaceById(id)
     return root.compactLabel(live && live.name !== "" ? live.name : String(id))
@@ -440,7 +477,7 @@ BarWidget {
   function applyWorkspaceState() {
     for (var i = 0; i < root.rows.length; i++) {
       var row = root.rows[i]
-      var name = row.label.replace(/"/g, '\\"')
+      var name = root.composeLabel(row.prefix, row.label).replace(/"/g, '\\"')
       Hyprland.dispatch('hl.dsp.workspace.rename({ workspace = "' + row.id + '", name = "' + name + '" })')
       if (row.monitor !== "")
         Hyprland.dispatch('hl.dsp.workspace.move({ workspace = "' + row.id + '", monitor = "' + row.monitor + '" })')

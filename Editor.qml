@@ -26,6 +26,7 @@ PanelWindow {
   property string barStyle: "plain"
   property bool countFromZero: false
   property bool compactNames: false
+  property bool showNumbers: true
   property string lastAppliedPins: ""
   property string colorActive: ""
   property string colorUnfocused: ""
@@ -94,8 +95,9 @@ PanelWindow {
 
     for (var j = 0; j < win.rows.length; j++) {
       var r = win.rows[j]
-      if (r.label === "") return "Workspace " + r.id + " needs a name"
-      if (r.label.indexOf("|") !== -1 || r.key.indexOf("|") !== -1 || r.apps.indexOf("|") !== -1)
+      if (r.label === "" && r.prefix === "") return "Workspace " + r.id + " needs a number or a name"
+      if (r.label.indexOf("|") !== -1 || r.key.indexOf("|") !== -1 || r.apps.indexOf("|") !== -1
+          || r.prefix.indexOf("|") !== -1)
         return "Entry for \"" + r.label + "\" contains \"|\" — not allowed (it is the field separator)"
     }
     return ""
@@ -123,6 +125,7 @@ PanelWindow {
       style: win.barStyle,
       base: win.countFromZero ? "0" : "1",
       compact: win.compactNames,
+      number: win.showNumbers,
       coloractive: win.colorActive,
       colorunfocused: win.colorUnfocused,
       coloroccupied: win.colorOccupied,
@@ -303,7 +306,8 @@ PanelWindow {
     for (var i = 0; i < win.rows.length; i++) maxId = Math.max(maxId, win.rows[i].id)
     var next = maxId + 1
     var copy = win.rows.slice()
-    copy.push({ id: next, key: "", monitor: "", label: String(win.countFromZero ? next - 1 : next), apps: "" })
+    copy.push({ id: next, key: "", monitor: "", label: "",
+                apps: "", prefix: String(win.countFromZero ? next - 1 : next) })
     win.rows = copy
     win.errorText = ""
     win.revision++
@@ -369,7 +373,8 @@ PanelWindow {
     var src = widget ? widget.rows : []
     var copy = []
     for (var i = 0; i < src.length; i++)
-      copy.push({ id: src[i].id, key: src[i].key, monitor: src[i].monitor, label: src[i].label, apps: src[i].apps || "" })
+      copy.push({ id: src[i].id, key: src[i].key, monitor: src[i].monitor, label: src[i].label,
+                  apps: src[i].apps || "", prefix: src[i].prefix === undefined ? "" : src[i].prefix })
     win.rows = copy
     win.renameKey = widget ? widget.renameKey : ""
     win.jumpKey = widget ? widget.jumpKey : ""
@@ -381,6 +386,7 @@ PanelWindow {
     win.barStyle = widget ? widget.barStyle : "plain"
     win.countFromZero = widget ? widget.countFromZero : false
     win.compactNames = widget ? widget.compactNames : false
+    win.showNumbers = widget ? widget.showNumbers : true
     win.colorActive = widget ? widget.colorActive : ""
     win.colorUnfocused = widget ? widget.colorUnfocused : ""
     win.colorOccupied = widget ? widget.colorOccupied : ""
@@ -460,7 +466,7 @@ PanelWindow {
     var copy = []
     for (var i = 0; i < win.rows.length; i++) {
       var r = win.rows[i]
-      copy.push({ id: r.id, key: r.key, monitor: r.monitor, label: r.label, apps: r.apps })
+      copy.push({ id: r.id, key: r.key, monitor: r.monitor, label: r.label, apps: r.apps, prefix: r.prefix })
     }
     win.rows = copy
     win.revision++
@@ -844,6 +850,62 @@ PanelWindow {
         }
       }
 
+      // Whether the number is drawn at all
+      RowLayout {
+        visible: win.tab === "settings"
+        Layout.fillWidth: true
+        spacing: 10
+
+        Rectangle {
+          Layout.preferredWidth: 18
+          Layout.preferredHeight: 18
+          radius: 4
+          color: win.showNumbers ? win.fg : "transparent"
+          border.color: win.showNumbers ? win.fg : win.line
+          border.width: 1
+
+          Text {
+            anchors.centerIn: parent
+            text: win.showNumbers ? "✓" : ""
+            color: Color.background
+            font.pixelSize: Style.font.body - 2
+            font.bold: true
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: { win.showNumbers = !win.showNumbers; win.autosave() }
+          }
+        }
+
+        ColumnLayout {
+          Layout.fillWidth: true
+          spacing: 2
+
+          Text {
+            text: "Include the number in the bar"
+            color: win.fg
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: { win.showNumbers = !win.showNumbers; win.autosave() }
+            }
+          }
+
+          Text {
+            text: "The number is a field of its own, not part of the name, so it can be hidden without editing anything. A workspace with only a number still shows it."
+            color: win.dim
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body - 2
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+          }
+        }
+      }
+
       // Spacing after the "number:" prefix, on the bar only
       RowLayout {
         visible: win.tab === "settings"
@@ -1044,29 +1106,41 @@ PanelWindow {
             // The number this workspace is under the chosen numbering, next to
             // the Hyprland id it actually maps to — the offset a count-from-0
             // numpad user lives with, made visible instead of remembered.
-            Text {
-              text: widget ? String(widget.displayNumber(rowRoot.row.id)) : String(rowRoot.row.id)
-              color: win.dim
-              font.family: Style.font.family
-              font.pixelSize: Style.font.body - 1
-              horizontalAlignment: Text.AlignRight
-              Layout.preferredWidth: 22
-            }
-
-            Text {
-              text: "→ " + rowRoot.row.id
-              color: Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.3)
-              font.family: Style.font.family
-              font.pixelSize: Style.font.body - 3
-              Layout.preferredWidth: 34
-            }
-
+            // The number is its own field: it is often not a number at all
+            // (0A, L, SA), so it is typed rather than derived.
             Rectangle {
-              Layout.preferredWidth: 240
+              Layout.preferredWidth: 54
               Layout.preferredHeight: 26
               radius: 5
               color: "transparent"
-              border.color: labelInput.text.indexOf("|") !== -1 || labelInput.text === ""
+              border.color: prefixInput.text.indexOf("|") !== -1 ? Color.urgent
+                          : (prefixInput.activeFocus ? win.fg : "transparent")
+              border.width: 1
+
+              TextInput {
+                id: prefixInput
+                anchors.fill: parent
+                anchors.leftMargin: 6
+                anchors.rightMargin: 6
+                verticalAlignment: TextInput.AlignVCenter
+                text: rowRoot.row.prefix !== "" ? rowRoot.row.prefix
+                    : String(win.countFromZero ? rowRoot.index : rowRoot.index + 1)
+                color: win.rowTint(rowRoot.row)
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
+                clip: true
+                selectByMouse: true
+                onTextEdited: { win.rows[rowRoot.index].prefix = text; win.autosave() }
+                Keys.onEscapePressed: win.close()
+              }
+            }
+
+            Rectangle {
+              Layout.preferredWidth: 200
+              Layout.preferredHeight: 26
+              radius: 5
+              color: "transparent"
+              border.color: labelInput.text.indexOf("|") !== -1
                 ? Color.urgent
                 : (labelInput.activeFocus ? win.fg : "transparent")
               border.width: 1
