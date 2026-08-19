@@ -35,11 +35,33 @@ apps pinned to each workspace.
 
 ```lua
 local seen_monitor = {}
+local settings = { number = "true", delim = ":", compact = "false" }
 local f = io.open(os.getenv("HOME") .. "/.config/hypr/workspaces.conf")
 if f then
   for line in f:lines() do
-    local id, key, mon, label, apps = line:match("^(%d+)|([^|]*)|([^|]*)|([^|]*)|?([^|]*)$")
+    -- id|key|monitor|name|apps|number
+    local id, key, mon, name, apps, num =
+      line:match("^(%d+)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|?([^|]*)$")
+    if not id then
+      -- Older five-field rows: field 4 holds the combined "0: Name".
+      id, key, mon, name, apps = line:match("^(%d+)|([^|]*)|([^|]*)|([^|]*)|?([^|]*)$")
+      num = ""
+    end
+
     if id then
+      -- The name a workspace carries until the plugin renames it, composed
+      -- the way the plugin composes it.
+      local label = name
+      if settings.number ~= "false" and num ~= "" then
+        if name == "" then
+          label = num
+        elseif settings.compact == "true" then
+          label = num .. settings.delim .. name
+        else
+          label = num .. settings.delim .. " " .. name
+        end
+      end
+
       local rule = {
         workspace = id,
         default_name = label,
@@ -62,6 +84,9 @@ if f then
           o.window(pattern, { workspace = id })
         end
       end
+    else
+      local k, v = line:match("^(%a+)|(.*)$")
+      if k and settings[k] ~= nil then settings[k] = v end
     end
   end
   f:close()
@@ -75,9 +100,11 @@ hotkeys.
 local f = io.open(os.getenv("HOME") .. "/.config/hypr/workspaces.conf")
 if f then
   for line in f:lines() do
-    local id, key, mon, label = line:match("^(%d+)|([^|]*)|([^|]*)|([^|]*)")
+    local id, key, mon, name = line:match("^(%d+)|([^|]*)|([^|]*)|([^|]*)")
+    local num = line:match("^%d+|[^|]*|[^|]*|[^|]*|[^|]*|([^|]*)$")
     if id and key ~= "" then
-      local base = label:match("^(.-): ") or label
+      local base = (num and num ~= "") and num or name
+      if name ~= "" and num and num ~= "" then base = num .. ": " .. name end
       o.bind("SUPER + " .. key, "Switch to workspace " .. base, hl.dsp.focus({ workspace = id }))
       o.bind("SUPER + SHIFT + " .. key, "Move to workspace " .. base, hl.dsp.window.move({ workspace = id }))
       o.bind("SUPER + CTRL + " .. key, "Move silently to workspace " .. base, hl.dsp.window.move({ workspace = id, follow = false }))
@@ -142,6 +169,7 @@ Right-click any workspace in the bar, or press the editor hotkey.
 
 | Column | |
 |---|---|
+| Number | the number or tag shown before the name — typed, so `0A` or `L` work; blank falls back to the row's position |
 | Name | click to rename |
 | Monitor | click to cycle through your displays, or **Any monitor** to leave it unpinned |
 | Hotkey | click, then press the combination — it is captured, not typed. `SUPER` is implied |
@@ -153,7 +181,9 @@ holds windows.
 **Settings tab** — the three hotkeys (rename, jump, editor), how the bar
 renders workspaces, how many app icons to show beside each name, a **Colours**
 block with a live swatch and hex field for each of the four workspace states,
-used both in the bar and in the editor's own list (blank means "theme"), and
+used both in the bar and in the editor's own list (blank means "theme"),
+numbering options — whether numbers are shown, whether you count from 0 or 1,
+the delimiter between number and name and whether a space follows it — and
 *Center the workspaces in the bar*, which moves the widget to the bar's center
 and pushes whatever was centered over to the right. Unticking puts those
 widgets back where they were.
@@ -170,7 +200,8 @@ base name.
 
 ## Fuzzy finder
 
-The jump hotkey opens a monitor → workspace → window tree. Typing filters it
+The jump hotkey opens a two-level tree: workspaces, with their windows nested
+one level in. Each workspace row carries its monitor and its hotkey as pills. Typing filters it
 and ranks best match first; every space-separated term has to match, in any
 order, so `dr chr` finds *Google Drive — Chromium*. Enter on a workspace goes
 there; Enter on a window focuses it across monitors and warps the pointer to
@@ -192,17 +223,26 @@ terminal will drag every window of that class along with it.
 `~/.config/hypr/workspaces.conf`, one workspace per line:
 
 ```
-id|hotkey|monitor|name|apps
+id|hotkey|monitor|name|apps|number
 ```
 
 ```
-1|KP_Insert|DP-2|0: Main|
-2|KP_End||1: Notes|md.obsidian.Obsidian
+1|KP_Insert|DP-2|Main||0
+2|KP_End||Notes|md.obsidian.Obsidian|1
 ```
 
 `hotkey` is `SUPER`-relative and may be empty. `monitor` empty means unpinned.
-`apps` is a comma-separated list of window-class regexes. Settings lines come
-first:
+`apps` is a comma-separated list of window-class regexes.
+
+`number` and `name` are separate fields, and the bar joins them for display.
+The number is typed, not counted, so it does not have to be a number —
+`0A`, `L` or `SA` are all fine, which a derived position could never express.
+Leave it empty and the row's position is used instead. A file written by an
+older version, where field 4 held the combined `0: Main`, is split on its
+first colon when it loads; a value with no colon is read as a number with no
+name. Nothing needs hand-editing.
+
+Settings lines come first:
 
 ```
 rename|SUPER + SHIFT + F2
@@ -217,6 +257,14 @@ colorunfocused|#ff9e3f
 `icons` is how many app icons appear beside a workspace name in the bar,
 default `3`, or `0` for none. `style` is how the bar draws workspaces —
 `plain` (default), `pill` or `underline`.
+
+Four keys control numbering and how a number and name are joined. `base` is
+`0` or `1`, whether you count from zero or one. `number` is `true` or `false`,
+whether the number is drawn at all. `delim` is the single character between
+number and name, `:` by default, and `compact` is `true` or `false` for
+whether a space follows it. The last two are display only — they change how a
+workspace is drawn, never what is stored, so switching them back and forth
+leaves your names untouched.
 
 `coloractive`, `colorunfocused`, `coloroccupied` and `colorempty` set the
 four workspace colours, as `#rgb`, `#rrggbb` or `#aarrggbb`. Absent or blank
