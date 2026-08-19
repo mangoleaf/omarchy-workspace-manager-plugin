@@ -1171,8 +1171,8 @@ PanelWindow {
             text: modelData.title
             color: win.dim
             font.family: Style.font.family
-            font.pixelSize: Style.font.body - 3
-            font.capitalization: Font.AllUppercase
+            font.pixelSize: Style.font.body - 1
+            font.bold: true
             elide: Text.ElideRight
             Layout.preferredWidth: modelData.width > 0 ? modelData.width : 0
             Layout.fillWidth: modelData.width < 0
