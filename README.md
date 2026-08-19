@@ -152,8 +152,8 @@ holds windows.
 
 **Settings tab** — the three hotkeys (rename, jump, editor), how the bar
 renders workspaces, how many app icons to show beside each name, a **Colours**
-block with a live swatch and hex field for each of the four workspace states
-(blank means "theme"), and
+block with a live swatch and hex field for each of the four workspace states,
+used both in the bar and in the editor's own list (blank means "theme"), and
 *Center the workspaces in the bar*, which moves the widget to the bar's center
 and pushes whatever was centered over to the right. Unticking puts those
 widgets back where they were.
