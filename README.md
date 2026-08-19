@@ -230,6 +230,11 @@ so a hand-written config can leave any of them out and still be valid.
 No field may contain `|`. The editor enforces this; if you hand-edit, keep to
 it.
 
+Hand-edit with that in mind: the editor rewrites this file in full from what
+it parsed, so comments, blank lines and any key it does not recognise are
+dropped the next time you change something in the editor. Keep the file to the
+fields documented above, and keep your notes somewhere else.
+
 ## What it writes
 
 The plugin writes two files, and nothing else on your system.
