@@ -230,24 +230,28 @@ so a hand-written config can leave any of them out and still be valid.
 No field may contain `|`. The editor enforces this; if you hand-edit, keep to
 it.
 
-Hand-edit with that in mind: the editor rewrites this file in full from what
-it parsed, so comments, blank lines and any key it does not recognise are
-dropped the next time you change something in the editor. Keep the file to the
-fields documented above, and keep your notes somewhere else.
+Hand annotation is safe. The editor and the rename popup rewrite this file in
+full, but comments, blank lines and keys the plugin does not recognise are
+kept verbatim: anything above the first line it recognises stays at the top,
+and everything else is written back after the workspace rows.
 
 ## What it writes
 
 The plugin writes two files, and nothing else on your system.
 
 `~/.config/hypr/workspaces.conf` is its own file: it is created and rewritten
-by the editor, and holds every workspace definition and setting described
-above.
+by the editor and by the rename popup, and holds every workspace definition
+and setting described above. Even there it does not clobber what it did not
+write — comments, blank lines and keys it does not recognise survive a rewrite
+verbatim.
 
 `~/.config/omarchy/shell.json` belongs to the shell, and is touched only when
 you tick or untick *Center the workspaces in the bar*. That write is a full
 JSON round-trip that preserves every other key in the file — your idle
-timings, plugin list and the rest are read back and written out unchanged —
-and it is undone by unticking the option.
+timings, plugin list and the rest are read back and written out with their
+values intact — and it is undone by unticking the option. The file is
+re-serialised at two-space indent, so hand formatting is normalised, though
+nothing is lost: JSON has no comments.
 
 `monitors.lua` and `bindings.lua` are **never** written. The snippets in
 [Setup](#setup) are yours to add and yours to remove; the plugin only reads
@@ -267,7 +271,9 @@ omarchy plugin remove mangoleaf.workspace-manager
 Then remove the two Lua snippets above, and delete
 `~/.config/hypr/workspaces.conf` if you want the workspace rules gone too.
 If you had *Center the workspaces in the bar* enabled, untick it before
-removing the plugin so the displaced widgets return to the center on their own.
+removing the plugin, so the displaced widgets return to the center on their
+own. Untick before deleting `workspaces.conf` too: the record of which widgets
+to put back lives in that file, as `centermoved`.
 
 ## Credits
 
