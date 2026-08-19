@@ -124,10 +124,15 @@ Each bar shows the workspaces pinned to its own monitor. A workspace left
 unpinned appears on whichever monitor it currently occupies and moves between
 bars along with it, so it is never shown twice or not at all.
 
-The focused workspace is highlighted; occupied workspaces are bright and empty
-ones dimmed. On a monitor that does not have focus, its active workspace is
-drawn in a distinct colour so you can see where you will land when focus moves
-there.
+Four states are drawn differently: the focused workspace, the active workspace
+on a monitor that does not have focus, a workspace with windows, and an empty
+one. Each has a colour you can set in the editor; left blank they follow your
+theme, except the unfocused-monitor state, which the theme has no colour for
+and so defaults to `#ff9e3f`.
+
+Empty workspaces are dimmed while their colour is blank — set one and the
+dimming stops, on the grounds that a colour you picked should be shown as you
+picked it.
 
 ## The editor
 
@@ -146,7 +151,9 @@ Right-click any workspace in the bar, or press the editor hotkey.
 holds windows.
 
 **Settings tab** — the three hotkeys (rename, jump, editor), how the bar
-renders workspaces, how many app icons to show beside each name, and
+renders workspaces, how many app icons to show beside each name, a **Colours**
+block with a live swatch and hex field for each of the four workspace states
+(blank means "theme"), and
 *Center the workspaces in the bar*, which moves the widget to the bar's center
 and pushes whatever was centered over to the right. Unticking puts those
 widgets back where they were.
@@ -154,8 +161,8 @@ widgets back where they were.
 The editor autosaves: there is no Save button and Esc just closes it. A change
 is written once you stop typing, then Hyprland reloads, names and monitors are
 applied, and any pinned app's open windows move onto its workspace. A change
-that is not valid — a blank name, a `|` in a field — shows an error and is not
-written until you fix it.
+that is not valid — a blank name, a `|` in a field, a colour that is not hex —
+shows an error and is not written until you fix it.
 
 The rename hotkey is a shortcut for one workspace: it opens a small popup for
 the *active* workspace only, editing the part after `": "` and keeping the
@@ -204,15 +211,21 @@ editor|SUPER + SHIFT + F4
 center|true
 icons|3
 style|pill
+colorunfocused|#ff9e3f
 ```
 
 `icons` is how many app icons appear beside a workspace name in the bar,
 default `3`, or `0` for none. `style` is how the bar draws workspaces —
 `plain` (default), `pill` or `underline`.
 
-The editor always writes `center`, `icons` and `style`, and writes
-`rename`, `jump`, `editor` and `centermoved` only when they are set — so a
-hand-written config can leave any of them out and still be valid.
+`coloractive`, `colorunfocused`, `coloroccupied` and `colorempty` set the
+four workspace colours, as `#rgb`, `#rrggbb` or `#aarrggbb`. Absent or blank
+means follow the theme, which is the default for all but `colorunfocused`
+(`#ff9e3f`).
+
+The editor always writes `center`, `icons` and `style`, and writes `rename`,
+`jump`, `editor`, `centermoved` and the four colours only when they are set —
+so a hand-written config can leave any of them out and still be valid.
 
 No field may contain `|`. The editor enforces this; if you hand-edit, keep to
 it.
