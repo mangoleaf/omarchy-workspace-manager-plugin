@@ -1,10 +1,11 @@
 {
   "schemaVersion": 1,
   "id": "mangoleaf.workspaces",
-  "name": "Mangoleaf Workspaces",
-  "version": "1.1.0",
+  "name": "Workspace Manager",
+  "version": "1.2.0",
   "author": "Mangoleaf Studios",
-  "description": "Named workspaces split per monitor, with a monitor/hotkey editor",
+  "license": "MIT",
+  "description": "Named per-monitor workspaces with an editor for names, monitors, hotkeys and pinned apps, plus a fuzzy workspace/window finder",
   "kinds": [
     "bar-widget"
   ],
@@ -12,8 +13,8 @@
     "barWidget": "Workspaces.qml"
   },
   "barWidget": {
-    "displayName": "Mangoleaf Workspaces",
-    "description": "Named workspaces split per monitor, with a monitor/hotkey editor",
+    "displayName": "Workspace Manager",
+    "description": "Named per-monitor workspaces with an editor for names, monitors, hotkeys and pinned apps, plus a fuzzy workspace/window finder",
     "category": "Compositor",
     "allowMultiple": false
   },

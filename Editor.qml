@@ -18,6 +18,7 @@ PanelWindow {
   property string errorText: ""
   property string renameKey: ""
   property string jumpKey: ""
+  property string editorKey: ""
 
   // App picker: which row is choosing an app class (-1 = closed)
   property int appsPickerRow: -1
@@ -160,7 +161,7 @@ PanelWindow {
   color: "transparent"
   WlrLayershell.namespace: "mangoleaf-workspace-editor"
   WlrLayershell.layer: WlrLayer.Overlay
-  WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+  WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
   readonly property color fg: Color.foreground
   readonly property color dim: Qt.rgba(fg.r, fg.g, fg.b, 0.55)
@@ -181,9 +182,19 @@ PanelWindow {
     win.rows = copy
     win.renameKey = widget ? widget.renameKey : ""
     win.jumpKey = widget ? widget.jumpKey : ""
+    win.editorKey = widget ? widget.editorKey : ""
     win.revision++
     win.errorText = ""
+
+    // Open on whichever monitor has focus, not wherever the instance that
+    // handled the hotkey happens to live.
+    var focusedName = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : ""
+    var screens = Quickshell.screens
+    for (var s = 0; s < screens.length; s++)
+      if (screens[s].name === focusedName) win.screen = screens[s]
+
     win.visible = true
+    Qt.callLater(function() { if (win.visible) card.forceActiveFocus() })
   }
 
   function pinMap() {
@@ -249,7 +260,7 @@ PanelWindow {
   }
 
   function save() {
-    if (win.renameKey.indexOf("|") !== -1 || win.jumpKey.indexOf("|") !== -1) {
+    if (win.renameKey.indexOf("|") !== -1 || win.jumpKey.indexOf("|") !== -1 || win.editorKey.indexOf("|") !== -1) {
       win.errorText = "Hotkeys must not contain \"|\" (it is the field separator)"
       return
     }
@@ -268,6 +279,7 @@ PanelWindow {
     var lines = []
     if (win.renameKey !== "") lines.push("rename|" + win.renameKey)
     if (win.jumpKey !== "") lines.push("jump|" + win.jumpKey)
+    if (win.editorKey !== "") lines.push("editor|" + win.editorKey)
     for (var i = 0; i < win.rows.length; i++)
       lines.push(win.rows[i].id + "|" + win.rows[i].key + "|" + win.rows[i].monitor + "|" + win.rows[i].label + "|" + win.rows[i].apps)
     if (widget) widget.saveConf(lines.join("\n") + "\n")
@@ -294,6 +306,10 @@ PanelWindow {
 
     MouseArea { anchors.fill: parent }
 
+    // Esc closes the editor. A KeyCapture consumes Esc while it is capturing
+    // and the app picker's search field handles its own, so this only fires
+    // when neither is holding focus.
+    focus: true
     Keys.onEscapePressed: win.close()
 
     ColumnLayout {
@@ -355,6 +371,23 @@ PanelWindow {
           dimColor: win.dim
           lineColor: win.line
           onCaptured: function(keys) { win.jumpKey = keys }
+        }
+
+        Text {
+          text: "Editor hotkey"
+          color: win.dim
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 1
+        }
+
+        KeyCapture {
+          Layout.preferredWidth: 190
+          Layout.preferredHeight: 26
+          value: win.editorKey
+          fg: win.fg
+          dimColor: win.dim
+          lineColor: win.line
+          onCaptured: function(keys) { win.editorKey = keys }
         }
 
         Item { Layout.fillWidth: true }
@@ -424,6 +457,7 @@ PanelWindow {
                 // Mutate in place rather than touch(): rebuilding the rows on
                 // every keystroke would destroy this field mid-word.
                 onTextEdited: win.rows[rowRoot.index].label = text
+                Keys.onEscapePressed: win.close()
               }
             }
 

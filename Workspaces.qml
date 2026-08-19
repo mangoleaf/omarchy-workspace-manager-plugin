@@ -18,6 +18,7 @@ BarWidget {
   property var rows: []
   property string renameKey: ""
   property string jumpKey: ""
+  property string editorKey: ""
   readonly property string confPath: Quickshell.env("HOME") + "/.config/hypr/workspaces.conf"
 
   readonly property string screenName: {
@@ -27,21 +28,19 @@ BarWidget {
 
   function loadConf(t) {
     var out = []
-    var rename = ""
-    var jump = ""
+    var settings = { rename: "", jump: "", editor: "" }
     var lines = (t || "").split("\n")
     for (var i = 0; i < lines.length; i++) {
       var p = lines[i].split("|")
       if (p.length >= 4 && /^\d+$/.test(p[0]))
         out.push({ id: parseInt(p[0]), key: p[1], monitor: p[2], label: p[3], apps: p.length >= 5 ? p[4] : "" })
-      else if (p.length >= 2 && p[0] === "rename")
-        rename = p.slice(1).join("|")
-      else if (p.length >= 2 && p[0] === "jump")
-        jump = p.slice(1).join("|")
+      else if (p.length >= 2 && settings[p[0]] !== undefined)
+        settings[p[0]] = p.slice(1).join("|")
     }
     root.rows = out
-    root.renameKey = rename
-    root.jumpKey = jump
+    root.renameKey = settings.rename
+    root.jumpKey = settings.jump
+    root.editorKey = settings.editor
   }
 
   function saveConf(text) {
@@ -89,6 +88,16 @@ BarWidget {
 
   function close() {
     if (jumpLoader.item) jumpLoader.item.close()
+  }
+
+  // The editor hotkey routes here. A bar widget exists per monitor and IPC
+  // reaches exactly one of them, which is what a single modal editor wants.
+  IpcHandler {
+    target: "mangoleaf.workspaces"
+
+    function editor(): void {
+      root.openEditor()
+    }
   }
 
   FileView {
