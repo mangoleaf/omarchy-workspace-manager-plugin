@@ -172,7 +172,7 @@ Right-click any workspace in the bar, or press the editor hotkey.
 | Number | the number or tag shown before the name — typed, so `0A` or `L` work; blank falls back to the row's position |
 | Name | click to rename |
 | Monitor | click to cycle through your displays, or **Any monitor** to leave it unpinned |
-| Hotkey | click, then press the combination — it is captured, not typed. `SUPER` is implied |
+| Hotkey | click, then press the combination — it is captured, not typed. Your existing bindings are suspended while it listens, so a combination that is already taken still records rather than firing. `SUPER` is implied on workspace rows |
 | Apps | pinned apps as tags. **+** opens a searchable list of installed apps, **✕** unpins, and dragging a tag onto another workspace re-pins it there |
 
 **+ Add workspace** appends one; the trash button removes it, unless it still
@@ -195,15 +195,18 @@ that is not valid — a blank name, a `|` in a field, a colour that is not hex �
 shows an error and is not written until you fix it.
 
 The rename hotkey is a shortcut for one workspace: it opens a small popup for
-the *active* workspace only, editing the part after `": "` and keeping the
-base name.
+the *active* workspace only, and edits its name. The number is left alone —
+it is a separate field, and the popup shows it beside the box so you can see
+what you are naming.
 
 ## Fuzzy finder
 
 The jump hotkey opens a two-level tree: workspaces, with their windows nested
 one level in. Each workspace row carries its monitor and its hotkey as pills. Typing filters it
 and ranks best match first; every space-separated term has to match, in any
-order, so `dr chr` finds *Google Drive — Chromium*. Enter on a workspace goes
+order, so `dr chr` finds *Google Drive — Chromium*. Where a workspace and a
+window match equally well — a workspace called Signal and the Signal window —
+the window wins, since the workspace has a hotkey of its own. Enter on a workspace goes
 there; Enter on a window focuses it across monitors and warps the pointer to
 its center, so hover focus does not snap back. Esc closes.
 
@@ -271,9 +274,10 @@ four workspace colours, as `#rgb`, `#rrggbb` or `#aarrggbb`. Absent or blank
 means follow the theme, which is the default for all but `colorunfocused`
 (`#ff9e3f`).
 
-The editor always writes `center`, `icons` and `style`, and writes `rename`,
-`jump`, `editor`, `centermoved` and the four colours only when they are set —
-so a hand-written config can leave any of them out and still be valid.
+The editor always writes `center`, `icons`, `style`, `base`, `compact`,
+`number` and `delim`, and writes `rename`, `jump`, `editor`, `centermoved` and
+the four colours only when they are set — so a hand-written config can leave
+any of them out and still be valid.
 
 No field may contain `|`. The editor enforces this; if you hand-edit, keep to
 it.
@@ -295,8 +299,10 @@ and setting described above. Even there it does not clobber what it did not
 write — comments, blank lines and keys it does not recognise survive a rewrite
 verbatim.
 
-`~/.config/omarchy/shell.json` belongs to the shell, and is touched only when
-you tick or untick *Center the workspaces in the bar*. That write is a full
+`~/.config/omarchy/shell.json` belongs to the shell, and is touched only if
+you tick or untick *Center the workspaces in the bar* — and then not until you
+close the editor, because rearranging the bar makes the shell rebuild it and
+that would take the editor down with it. That write is a full
 JSON round-trip that preserves every other key in the file — your idle
 timings, plugin list and the rest are read back and written out with their
 values intact — and it is undone by unticking the option. The file is
@@ -308,9 +314,16 @@ nothing is lost: JSON has no comments.
 the config file they point at.
 
 Saving in the editor also runs `hyprctl reload` and applies workspace names,
-monitor assignments and pinned-app window moves to the running session. Those
-are live compositor actions, not file changes, and nothing is written to disk
-beyond the two files above.
+monitor assignments and pinned-app window moves to the running session.
+
+One further runtime change, which touches no file: at startup the plugin
+defines a Hyprland submap named `mangoleaf-capture`, and switches into it
+only while a hotkey box is listening. That is what suspends your bindings
+long enough to capture a combination that is already bound; it is left the
+moment capture ends, and it disappears with the compositor's next reload.
+
+All of the above are live compositor actions, not file changes. Nothing is
+written to disk beyond the two files above.
 
 ## Uninstall
 
