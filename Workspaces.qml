@@ -8,17 +8,29 @@ import qs.Ui
 
 // Named workspaces, split per monitor. Definitions live in
 // ~/.config/hypr/workspaces.conf (id|key|monitor|label|apps), shared with
-// monitors.lua, bindings.lua, and rename-workspace.sh.
+// monitors.lua and bindings.lua (see README.md).
 // Right-click any workspace to open the editor; the jump hotkey opens the
 // fuzzy workspace/window finder.
 BarWidget {
   id: root
-  moduleName: "mangoleaf.workspaces"
+  moduleName: "mangoleaf.workspace-manager"
 
   property var rows: []
   property string renameKey: ""
   property string jumpKey: ""
   property string editorKey: ""
+  property bool centerBar: false
+  property string centerMoved: ""
+
+  // ponytail: 3 is just a sane starting point for how many app icons fit
+  // beside a name; the setting is what matters, not this number.
+  readonly property int defaultIconCount: 3
+  property int iconCount: defaultIconCount
+  property string barStyle: "plain"
+
+  // The active workspace on a monitor that does not have focus, so a glance
+  // at the other screen still says where you were.
+  readonly property color unfocusedActiveColor: "#ff9e3f"
   readonly property string confPath: Quickshell.env("HOME") + "/.config/hypr/workspaces.conf"
 
   readonly property string screenName: {
@@ -28,7 +40,7 @@ BarWidget {
 
   function loadConf(t) {
     var out = []
-    var settings = { rename: "", jump: "", editor: "" }
+    var settings = { rename: "", jump: "", editor: "", center: "", centermoved: "", icons: "", style: "" }
     var lines = (t || "").split("\n")
     for (var i = 0; i < lines.length; i++) {
       var p = lines[i].split("|")
@@ -41,6 +53,48 @@ BarWidget {
     root.renameKey = settings.rename
     root.jumpKey = settings.jump
     root.editorKey = settings.editor
+    root.centerBar = settings.center === "true"
+    root.centerMoved = settings.centermoved
+    root.iconCount = settings.icons === "" ? root.defaultIconCount : parseInt(settings.icons)
+    root.barStyle = settings.style === "" ? "plain" : settings.style
+  }
+
+  // Everything that knows the file format lives here, so the editor and the
+  // rename popup can both write without duplicating it.
+  function currentSettings() {
+    return {
+      rename: root.renameKey,
+      jump: root.jumpKey,
+      editor: root.editorKey,
+      center: root.centerBar,
+      centermoved: root.centerMoved,
+      icons: root.iconCount,
+      style: root.barStyle
+    }
+  }
+
+  function buildConf(rows, s) {
+    var lines = []
+    if (s.rename !== "") lines.push("rename|" + s.rename)
+    if (s.jump !== "") lines.push("jump|" + s.jump)
+    if (s.editor !== "") lines.push("editor|" + s.editor)
+    lines.push("center|" + (s.center ? "true" : "false"))
+    if (s.centermoved !== "") lines.push("centermoved|" + s.centermoved)
+    lines.push("icons|" + s.icons)
+    lines.push("style|" + s.style)
+    for (var i = 0; i < rows.length; i++)
+      lines.push(rows[i].id + "|" + rows[i].key + "|" + rows[i].monitor + "|" + rows[i].label + "|" + rows[i].apps)
+    return lines.join("\n") + "\n"
+  }
+
+  // Used by the rename popup, which changes one label and nothing else.
+  function writeLabel(id, label) {
+    var rows = []
+    for (var i = 0; i < root.rows.length; i++) {
+      var r = root.rows[i]
+      rows.push({ id: r.id, key: r.key, monitor: r.monitor, label: r.id === id ? label : r.label, apps: r.apps })
+    }
+    root.saveConf(root.buildConf(rows, root.currentSettings()))
   }
 
   function saveConf(text) {
@@ -48,12 +102,47 @@ BarWidget {
     applyTimer.restart()
   }
 
+  // Fallback home for an unpinned workspace Hyprland has not placed yet, so
+  // it shows on exactly one bar rather than none or all of them.
+  readonly property bool isFirstScreen: {
+    var screens = Quickshell.screens
+    return screens.length > 0 && String(screens[0].name || "") === root.screenName
+  }
+
+  // This bar shows the workspaces pinned to its monitor, plus any unpinned
+  // ones that currently live here — so an unpinned workspace appears once,
+  // on whichever bar it is actually on, and follows as it moves.
   function workspaceIds() {
+    // Nothing configured yet: fall back to whatever Hyprland already has, so
+    // a fresh install still draws something and right-click can reach the
+    // editor. Without this the widget would be empty and unreachable.
+    if (root.rows.length === 0) {
+      var live = []
+      var all = Hyprland.workspaces.values
+      for (var w = 0; w < all.length; w++) {
+        var ws = all[w]
+        if (ws.id <= 0) continue
+        var where = ws.monitor ? String(ws.monitor.name || "") : ""
+        if (where === root.screenName || (where === "" && root.isFirstScreen)) live.push(ws.id)
+      }
+      live.sort(function(a, b) { return a - b })
+      return live
+    }
+
     var ids = []
-    for (var i = 0; i < root.rows.length; i++)
-      if (root.rows[i].monitor === root.screenName) ids.push(root.rows[i].id)
-    if (ids.length === 0)
-      for (var j = 1; j <= 26; j++) ids.push(j)
+    for (var i = 0; i < root.rows.length; i++) {
+      var row = root.rows[i]
+      if (row.monitor === root.screenName) {
+        ids.push(row.id)
+        continue
+      }
+      if (row.monitor !== "") continue
+
+      var live = root.workspaceById(row.id)
+      var on = live && live.monitor ? String(live.monitor.name || "") : ""
+      if (on === root.screenName || (on === "" && root.isFirstScreen)) ids.push(row.id)
+    }
+    ids.sort(function(a, b) { return a - b })
     return ids
   }
 
@@ -66,6 +155,54 @@ BarWidget {
     return null
   }
 
+  // The config is the authority on names — a workspace that does not exist
+  // yet still has one, and that is what a freshly added workspace shows.
+  function labelFor(id) {
+    for (var i = 0; i < root.rows.length; i++)
+      if (root.rows[i].id === id && root.rows[i].label !== "") return root.rows[i].label
+
+    var live = root.workspaceById(id)
+    return live && live.name !== "" ? live.name : String(id)
+  }
+
+  // App icons for the windows on a workspace, one per distinct app so three
+  // terminals do not eat the whole allowance.
+  property var iconCache: ({})
+
+  function classIcon(cls) {
+    if (cls === "") return ""
+    if (root.iconCache[cls] !== undefined) return root.iconCache[cls]
+    var out = ""
+    var entry = DesktopEntries.heuristicLookup(cls)
+    if (entry && entry.icon) {
+      var v = String(entry.icon)
+      if (v.indexOf("file://") === 0 || v.indexOf("image://") === 0) out = v
+      else if (v.charAt(0) === "/") out = "file://" + v
+      else out = Quickshell.iconPath(v, true)
+    }
+    root.iconCache[cls] = out
+    return out
+  }
+
+  function iconsFor(id) {
+    if (root.iconCount <= 0) return []
+    var ws = root.workspaceById(id)
+    if (!ws || !ws.toplevels) return []
+
+    var seen = {}
+    var out = []
+    var values = ws.toplevels.values
+    for (var i = 0; i < values.length && out.length < root.iconCount; i++) {
+      var ipc = values[i].lastIpcObject || ({})
+      var cls = String(ipc["class"] || ipc.initialClass || "")
+      if (cls === "" || seen[cls]) continue
+      seen[cls] = true
+      var src = root.classIcon(cls)
+      if (src !== "") out.push(src)
+    }
+    return out
+  }
+
   function focusWorkspace(id) {
     if (!root.bar) return
     root.bar.run("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ workspace = \"" + id + "\" })"))
@@ -76,8 +213,13 @@ BarWidget {
     else editorLoader.active = true
   }
 
+  function openRename() {
+    if (renameLoader.active && renameLoader.item) renameLoader.item.openNow()
+    else renameLoader.active = true
+  }
+
   // shell.summon/hide/toggle contract (Bar.findPanelWidget) — routes the
-  // "jump" hotkey (omarchy-shell shell toggle mangoleaf.workspaces) to the
+  // "jump" hotkey (omarchy-shell shell toggle mangoleaf.workspace-manager) to the
   // fuzzy finder.
   readonly property bool opened: jumpLoader.item ? jumpLoader.item.visible === true : false
 
@@ -93,11 +235,93 @@ BarWidget {
   // The editor hotkey routes here. A bar widget exists per monitor and IPC
   // reaches exactly one of them, which is what a single modal editor wants.
   IpcHandler {
-    target: "mangoleaf.workspaces"
+    target: "mangoleaf.workspace-manager"
 
     function editor(): void {
       root.openEditor()
     }
+
+    function rename(): void {
+      root.openRename()
+    }
+  }
+
+  // Bar layout lives in the shell's own config, so centering the workspaces
+  // means editing shell.json. Everything else in that file is preserved.
+  FileView {
+    id: shellFile
+    path: Quickshell.env("HOME") + "/.config/omarchy/shell.json"
+    watchChanges: true
+    printErrors: false
+  }
+
+  property string pendingShellJson: ""
+
+  // Writing shell.json makes the shell rebuild the bar, which tears down this
+  // widget — so let the caller's own config write land first.
+  Timer {
+    id: shellWriteTimer
+    interval: 0
+    onTriggered: {
+      if (root.pendingShellJson === "") return
+      shellFile.setText(root.pendingShellJson)
+      root.pendingShellJson = ""
+    }
+  }
+
+  // Move this widget into the bar's center section, pushing whatever was
+  // centered over to the right; or undo that, putting the displaced widgets
+  // back. Returns the ids it displaced, for the caller to persist.
+  function setBarCentered(enabled, movedCsv) {
+    var cfg
+    try { cfg = JSON.parse(shellFile.text()) } catch (e) { return movedCsv }
+    if (!cfg || !cfg.bar || !cfg.bar.layout) return movedCsv
+
+    var layout = cfg.bar.layout
+    layout.left = layout.left || []
+    layout.center = layout.center || []
+    layout.right = layout.right || []
+
+    var me = root.moduleName
+    function without(list, id) {
+      return list.filter(function(entry) { return entry.id !== id })
+    }
+    function find(id) {
+      var all = layout.left.concat(layout.center, layout.right)
+      for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i]
+      return { id: id }
+    }
+
+    var self = find(me)
+    var result = movedCsv
+
+    if (enabled) {
+      var displaced = without(layout.center, me)
+      layout.left = without(layout.left, me)
+      layout.right = without(layout.right, me).concat(displaced)
+      layout.center = [self]
+      cfg.bar.centerAnchor = me
+      result = displaced.map(function(entry) { return entry.id }).join(",")
+    } else {
+      var ids = movedCsv === "" ? [] : movedCsv.split(",")
+      var back = []
+      for (var i = 0; i < ids.length; i++) {
+        back.push(find(ids[i]))
+        layout.right = without(layout.right, ids[i])
+        layout.center = without(layout.center, ids[i])
+      }
+      layout.center = back
+      layout.left = without(layout.left, me).concat([self])
+      layout.right = without(layout.right, me)
+      cfg.bar.centerAnchor = back.length > 0
+        ? (ids.indexOf("omarchy.clock") !== -1 ? "omarchy.clock" : back[0].id)
+        : ""
+      result = ""
+    }
+
+    root.pendingShellJson = JSON.stringify(cfg, null, 2) + "\n"
+    shellWriteTimer.restart()
+    return result
   }
 
   FileView {
@@ -110,17 +334,46 @@ BarWidget {
     onLoadFailed: root.loadConf("")
   }
 
-  // Let the setText write land before hyprctl reads the file
+  // Let the setText write land before hyprctl re-reads the file, then pick up
+  // the new workspace rules and bindings.
   Timer {
     id: applyTimer
     interval: 400
-    onTriggered: if (root.bar) root.bar.run(Quickshell.env("HOME") + "/sync/scripts/rename-workspace.sh --apply")
+    onTriggered: reloadProc.running = true
+  }
+
+  Process {
+    id: reloadProc
+    command: ["hyprctl", "reload"]
+    onExited: root.applyWorkspaceState()
+  }
+
+  // Hyprland reloads rules but does not retroactively rename or re-home the
+  // workspaces it already has, so push those through after the reload.
+  function applyWorkspaceState() {
+    for (var i = 0; i < root.rows.length; i++) {
+      var row = root.rows[i]
+      var name = row.label.replace(/"/g, '\\"')
+      Hyprland.dispatch('hl.dsp.workspace.rename({ workspace = "' + row.id + '", name = "' + name + '" })')
+      if (row.monitor !== "")
+        Hyprland.dispatch('hl.dsp.workspace.move({ workspace = "' + row.id + '", monitor = "' + row.monitor + '" })')
+    }
   }
 
   Loader {
     id: editorLoader
     active: false
     source: Qt.resolvedUrl("Editor.qml")
+    onLoaded: {
+      item.widget = root
+      item.openNow()
+    }
+  }
+
+  Loader {
+    id: renameLoader
+    active: false
+    source: Qt.resolvedUrl("Rename.qml")
     onLoaded: {
       item.widget = root
       item.openNow()
@@ -153,23 +406,101 @@ BarWidget {
     Repeater {
       model: root.workspaceIds()
 
-      WidgetButton {
+      Item {
+        id: chip
         required property int modelData
 
         readonly property var workspace: root.workspaceById(modelData)
         readonly property bool occupied: workspace !== null && workspace.toplevels.values.length > 0
-        readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData
 
-        bar: root.bar
-        text: workspace !== null && workspace.name !== "" ? workspace.name : String(modelData)
-        active: focused
-        dimmed: !occupied && !focused
-        horizontalMargin: 4
-        verticalPadding: 6
-        fixedHeight: root.barSize
-        onPressed: function(button) {
-          if (button === Qt.RightButton) root.openEditor()
-          else root.focusWorkspace(modelData)
+        // Active on the focused monitor vs active on some other monitor —
+        // the second still deserves a marker, just a different one.
+        readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData
+        readonly property bool activeElsewhere: !focused && workspace !== null && workspace.active === true
+
+        readonly property var icons: root.iconsFor(modelData)
+        readonly property color accent: root.bar ? root.bar.urgent : Color.urgent
+        readonly property color tint: focused
+          ? accent
+          : (activeElsewhere ? root.unfocusedActiveColor
+                             : (root.bar ? root.bar.barForeground : Color.foreground))
+
+        implicitWidth: body.implicitWidth + Style.spaceReal(8)
+        implicitHeight: root.barSize
+        opacity: occupied || focused || activeElsewhere ? 1 : 0.5
+
+        Behavior on opacity {
+          NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+        }
+
+        // "pill" fills behind the marked workspace, "underline" rules under
+        // it; "plain" is the stock look, colour only.
+        Rectangle {
+          visible: root.barStyle === "pill" && (chip.focused || chip.activeElsewhere)
+          anchors.fill: parent
+          anchors.topMargin: Style.spaceReal(3)
+          anchors.bottomMargin: Style.spaceReal(3)
+          radius: height / 2
+          color: Qt.rgba(chip.tint.r, chip.tint.g, chip.tint.b, 0.18)
+        }
+
+        Rectangle {
+          visible: root.barStyle === "underline" && (chip.focused || chip.activeElsewhere)
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.bottom: parent.bottom
+          anchors.bottomMargin: Style.spaceReal(3)
+          anchors.leftMargin: Style.spaceReal(3)
+          anchors.rightMargin: Style.spaceReal(3)
+          height: Math.max(1, Style.spaceReal(2))
+          radius: height / 2
+          color: chip.tint
+        }
+
+        Row {
+          id: body
+          anchors.centerIn: parent
+          spacing: Style.spaceReal(4)
+
+          Repeater {
+            model: chip.icons
+
+            Image {
+              required property string modelData
+              anchors.verticalCenter: parent.verticalCenter
+              width: Style.font.body
+              height: Style.font.body
+              fillMode: Image.PreserveAspectFit
+              // Decode at 2x so small icons stay sharp on HiDPI outputs.
+              sourceSize.width: width * 2
+              sourceSize.height: height * 2
+              source: modelData
+              asynchronous: true
+            }
+          }
+
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.labelFor(chip.modelData)
+            color: chip.tint
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.body
+            renderType: Text.NativeRendering
+
+            Behavior on color {
+              ColorAnimation { duration: 160 }
+            }
+          }
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          acceptedButtons: Qt.LeftButton | Qt.RightButton
+          cursorShape: Qt.PointingHandCursor
+          onClicked: function(mouse) {
+            if (mouse.button === Qt.RightButton) root.openEditor()
+            else root.focusWorkspace(chip.modelData)
+          }
         }
       }
     }

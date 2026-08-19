@@ -21,7 +21,7 @@ PanelWindow {
   visible: false
   anchors { top: true; bottom: true; left: true; right: true }
   color: "transparent"
-  WlrLayershell.namespace: "mangoleaf-workspace-jump"
+  WlrLayershell.namespace: "omarchy-workspace-manager-jump"
   WlrLayershell.layer: WlrLayer.Overlay
   WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 

@@ -5,10 +5,9 @@ import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 
-// Workspace editor: per-workspace monitor assignment (click to cycle through
-// connected monitors) and hotkey (SUPER-relative key expression, e.g.
-// "KP_Insert" or "ALT + KP_Insert"). Save writes workspaces.conf and applies
-// live via rename-workspace.sh --apply. Labels are renamed with SUPER+SHIFT+F2.
+// Workspace editor. Every change autosaves to workspaces.conf after a short
+// debounce — there is no save button, Esc just closes. An invalid edit (blank
+// name, "|" in a field) shows an error and is held back until it is valid.
 PanelWindow {
   id: win
 
@@ -19,6 +18,71 @@ PanelWindow {
   property string renameKey: ""
   property string jumpKey: ""
   property string editorKey: ""
+  property bool centerBar: false
+  property bool centerBarLoaded: false
+  property string centerMoved: ""
+  property string tab: "workspaces"
+  property int iconCount: 3
+  property string barStyle: "plain"
+  property string lastAppliedPins: ""
+
+  readonly property var barStyles: ["plain", "pill", "underline"]
+
+  // Every change writes itself. The debounce keeps a burst of typing to one
+  // file write, which the widget then turns into one hyprctl reload.
+  Timer {
+    id: autosaveTimer
+    interval: 500
+    onTriggered: win.flush()
+  }
+
+  function autosave() {
+    autosaveTimer.restart()
+  }
+
+  function validate() {
+    if (win.renameKey.indexOf("|") !== -1 || win.jumpKey.indexOf("|") !== -1 || win.editorKey.indexOf("|") !== -1)
+      return "Hotkeys must not contain \"|\" (it is the field separator)"
+
+    for (var j = 0; j < win.rows.length; j++) {
+      var r = win.rows[j]
+      if (r.label === "") return "Workspace " + r.id + " needs a name"
+      if (r.label.indexOf("|") !== -1 || r.key.indexOf("|") !== -1 || r.apps.indexOf("|") !== -1)
+        return "Entry for \"" + r.label + "\" contains \"|\" — not allowed (it is the field separator)"
+    }
+    return ""
+  }
+
+  // Write whatever is valid right now. An invalid edit simply is not written
+  // until it becomes valid again, so a half-typed name never reaches disk.
+  function flush() {
+    var problem = win.validate()
+    win.errorText = problem
+    if (problem !== "" || !widget) return
+
+    if (win.centerBar !== win.centerBarLoaded) {
+      win.centerMoved = widget.setBarCentered(win.centerBar, win.centerMoved)
+      win.centerBarLoaded = win.centerBar
+    }
+
+    widget.saveConf(widget.buildConf(win.rows, {
+      rename: win.renameKey,
+      jump: win.jumpKey,
+      editor: win.editorKey,
+      center: win.centerBar,
+      centermoved: win.centerMoved,
+      icons: win.iconCount,
+      style: win.barStyle
+    }))
+
+    // Only chase windows when the pins actually changed, so an unrelated
+    // edit does not yank windows around.
+    var pins = JSON.stringify(win.pinMap())
+    if (pins !== win.lastAppliedPins) {
+      win.applyPinMoves()
+      win.lastAppliedPins = pins
+    }
+  }
 
   // App picker: which row is choosing an app class (-1 = closed)
   property int appsPickerRow: -1
@@ -159,7 +223,7 @@ PanelWindow {
   visible: false
   anchors { top: true; bottom: true; left: true; right: true }
   color: "transparent"
-  WlrLayershell.namespace: "mangoleaf-workspace-editor"
+  WlrLayershell.namespace: "omarchy-workspace-manager-editor"
   WlrLayershell.layer: WlrLayer.Overlay
   WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
@@ -167,11 +231,62 @@ PanelWindow {
   readonly property color dim: Qt.rgba(fg.r, fg.g, fg.b, 0.55)
   readonly property color line: Qt.rgba(fg.r, fg.g, fg.b, 0.18)
 
+  // "" is a real choice: an unpinned workspace opens wherever focus is.
   function monitorNames() {
     var names = []
     var screens = Quickshell.screens
-    for (var i = 0; i < screens.length; i++) names.push(screens[i].name)
+    for (var i = 0; i < screens.length; i++) names.push(String(screens[i].name))
+    names.push("")
     return names
+  }
+
+  function monitorLabel(name) {
+    return name === "" ? "Any monitor" : name
+  }
+
+  function addWorkspace() {
+    var maxId = 0
+    for (var i = 0; i < win.rows.length; i++) maxId = Math.max(maxId, win.rows[i].id)
+    var next = maxId + 1
+    var copy = win.rows.slice()
+    copy.push({ id: next, key: "", monitor: "", label: "Workspace " + next, apps: "" })
+    win.rows = copy
+    win.errorText = ""
+    win.revision++
+    win.autosave()
+    Qt.callLater(function() { list.positionViewAtEnd() })
+  }
+
+  function windowCount(workspaceId) {
+    var values = Hyprland.workspaces.values
+    for (var i = 0; i < values.length; i++)
+      if (values[i].id === workspaceId)
+        return values[i].toplevels ? values[i].toplevels.values.length : 0
+    return 0
+  }
+
+  // Removing a workspace that still holds windows would strand them, so make
+  // the user move them out first.
+  function removeWorkspace(index) {
+    if (win.rows.length <= 1) {
+      win.errorText = "At least one workspace is needed"
+      return
+    }
+
+    var row = win.rows[index]
+    var open = win.windowCount(row.id)
+    if (open > 0) {
+      win.errorText = "\"" + row.label + "\" still has " + open
+        + (open === 1 ? " open window" : " open windows") + " — move them somewhere else first"
+      return
+    }
+
+    var copy = []
+    for (var i = 0; i < win.rows.length; i++) if (i !== index) copy.push(win.rows[i])
+    win.rows = copy
+    win.errorText = ""
+    win.revision++
+    win.autosave()
   }
 
   function openNow() {
@@ -183,6 +298,13 @@ PanelWindow {
     win.renameKey = widget ? widget.renameKey : ""
     win.jumpKey = widget ? widget.jumpKey : ""
     win.editorKey = widget ? widget.editorKey : ""
+    win.centerBar = widget ? widget.centerBar : false
+    win.centerBarLoaded = win.centerBar
+    win.centerMoved = widget ? widget.centerMoved : ""
+    win.iconCount = widget ? widget.iconCount : 3
+    win.barStyle = widget ? widget.barStyle : "plain"
+    win.lastAppliedPins = JSON.stringify(win.pinMap())
+    win.tab = "workspaces"
     win.revision++
     win.errorText = ""
 
@@ -244,6 +366,7 @@ PanelWindow {
     }
     win.rows = copy
     win.revision++
+    win.autosave()
   }
 
   function cycleMonitor(index) {
@@ -259,33 +382,6 @@ PanelWindow {
     win.touch()
   }
 
-  function save() {
-    if (win.renameKey.indexOf("|") !== -1 || win.jumpKey.indexOf("|") !== -1 || win.editorKey.indexOf("|") !== -1) {
-      win.errorText = "Hotkeys must not contain \"|\" (it is the field separator)"
-      return
-    }
-    for (var j = 0; j < win.rows.length; j++) {
-      var r = win.rows[j]
-      if (r.label === "") {
-        win.errorText = "Workspace " + r.id + " needs a name"
-        return
-      }
-      if (r.label.indexOf("|") !== -1 || r.key.indexOf("|") !== -1 || r.apps.indexOf("|") !== -1) {
-        win.errorText = "Entry for \"" + r.label + "\" contains \"|\" — not allowed (it is the field separator)"
-        return
-      }
-    }
-    win.errorText = ""
-    var lines = []
-    if (win.renameKey !== "") lines.push("rename|" + win.renameKey)
-    if (win.jumpKey !== "") lines.push("jump|" + win.jumpKey)
-    if (win.editorKey !== "") lines.push("editor|" + win.editorKey)
-    for (var i = 0; i < win.rows.length; i++)
-      lines.push(win.rows[i].id + "|" + win.rows[i].key + "|" + win.rows[i].monitor + "|" + win.rows[i].label + "|" + win.rows[i].apps)
-    if (widget) widget.saveConf(lines.join("\n") + "\n")
-    win.applyPinMoves()
-    close()
-  }
 
   // Scrim
   Rectangle {
@@ -318,16 +414,36 @@ PanelWindow {
       anchors.margins: 20
       spacing: 12
 
-      Text {
-        text: "Workspaces"
-        color: win.fg
-        font.family: Style.font.family
-        font.pixelSize: Style.font.body + 3
-        font.bold: true
+      RowLayout {
+        Layout.fillWidth: true
+        spacing: 16
+
+        Repeater {
+          model: [{ id: "workspaces", label: "Workspaces" }, { id: "settings", label: "Settings" }]
+
+          Text {
+            required property var modelData
+            text: modelData.label
+            color: win.tab === modelData.id ? win.fg : win.dim
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body + 3
+            font.bold: win.tab === modelData.id
+
+            MouseArea {
+              anchors.fill: parent
+              anchors.margins: -4
+              cursorShape: Qt.PointingHandCursor
+              onClicked: win.tab = modelData.id
+            }
+          }
+        }
+
+        Item { Layout.fillWidth: true }
       }
 
       Text {
-        text: "Name — click to edit. Monitor — click to cycle. Hotkey — click, then press the keys (SUPER is implied on workspace keys). Apps — “+” pins an app so it always opens here; drag a tag to another workspace to move it, “✕” unpins it. Saving applies everything and moves any pinned app's open windows to its workspace."
+        visible: win.tab === "workspaces"
+        text: "Name — click to edit. Monitor — click to cycle, including “Any monitor” to leave a workspace unpinned. Hotkey — click, then press the keys (SUPER is implied on workspace keys). Apps — “+” pins an app so it always opens here; drag a tag to another workspace to move it, “✕” unpins it. Saving applies everything and moves any pinned app's open windows to its workspace."
         color: win.dim
         font.family: Style.font.family
         font.pixelSize: Style.font.body - 1
@@ -335,71 +451,254 @@ PanelWindow {
         wrapMode: Text.WordWrap
       }
 
+      // Settings pane — one row per setting
+      ColumnLayout {
+        visible: win.tab === "settings"
+        Layout.fillWidth: true
+        spacing: 8
+
+        Repeater {
+          model: [
+            { key: "rename", label: "Rename hotkey", hint: "Rename the active workspace" },
+            { key: "jump", label: "Jump hotkey", hint: "Fuzzy-find workspaces and windows" },
+            { key: "editor", label: "Editor hotkey", hint: "Open this editor" }
+          ]
+
+          RowLayout {
+            required property var modelData
+            Layout.fillWidth: true
+            spacing: 10
+
+            Text {
+              text: modelData.label
+              color: win.dim
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body - 1
+              Layout.preferredWidth: 110
+            }
+
+            KeyCapture {
+              Layout.preferredWidth: 190
+              Layout.preferredHeight: 26
+              value: modelData.key === "rename" ? win.renameKey
+                   : modelData.key === "jump" ? win.jumpKey : win.editorKey
+              fg: win.fg
+              dimColor: win.dim
+              lineColor: win.line
+              onCaptured: function(keys) {
+                if (modelData.key === "rename") win.renameKey = keys
+                else if (modelData.key === "jump") win.jumpKey = keys
+                else win.editorKey = keys
+                value = keys
+                win.autosave()
+              }
+            }
+
+            Text {
+              text: modelData.hint
+              color: win.dim
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body - 2
+              Layout.fillWidth: true
+              elide: Text.ElideRight
+            }
+          }
+        }
+      }
+
+      // Settings pane
       RowLayout {
+        visible: win.tab === "settings"
+        Layout.fillWidth: true
+        Layout.topMargin: 6
+        spacing: 10
+
+        Rectangle {
+          Layout.preferredWidth: 18
+          Layout.preferredHeight: 18
+          radius: 4
+          color: win.centerBar ? win.fg : "transparent"
+          border.color: win.centerBar ? win.fg : win.line
+          border.width: 1
+
+          Text {
+            anchors.centerIn: parent
+            text: win.centerBar ? "✓" : ""
+            color: Color.background
+            font.pixelSize: Style.font.body - 2
+            font.bold: true
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: { win.centerBar = !win.centerBar; win.autosave() }
+          }
+        }
+
+        ColumnLayout {
+          Layout.fillWidth: true
+          spacing: 2
+
+          Text {
+            text: "Center the workspaces in the bar"
+            color: win.fg
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: { win.centerBar = !win.centerBar; win.autosave() }
+            }
+          }
+
+          Text {
+            text: win.centerBar
+              ? "Widgets that were centered sit on the right; unticking puts them back."
+              : "Workspaces sit on the left. Ticking moves them to the center and pushes the centered widgets to the right."
+            color: win.dim
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body - 2
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+          }
+        }
+      }
+
+      // App icons beside each workspace name
+      RowLayout {
+        visible: win.tab === "settings"
+        Layout.fillWidth: true
+        Layout.topMargin: 4
+        spacing: 10
+
+        Text {
+          text: "App icons"
+          color: win.dim
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 1
+          Layout.preferredWidth: 110
+        }
+
+        Rectangle {
+          Layout.preferredWidth: 26
+          Layout.preferredHeight: 26
+          radius: 5
+          color: "transparent"
+          border.color: win.line
+          border.width: 1
+          Text { anchors.centerIn: parent; text: "−"; color: win.iconCount > 0 ? win.fg : win.dim; font.pixelSize: Style.font.body }
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: if (win.iconCount > 0) { win.iconCount--; win.autosave() }
+          }
+        }
+
+        Text {
+          text: win.iconCount === 0 ? "off" : String(win.iconCount)
+          color: win.fg
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body
+          horizontalAlignment: Text.AlignHCenter
+          Layout.preferredWidth: 30
+        }
+
+        Rectangle {
+          Layout.preferredWidth: 26
+          Layout.preferredHeight: 26
+          radius: 5
+          color: "transparent"
+          border.color: win.line
+          border.width: 1
+          Text { anchors.centerIn: parent; text: "+"; color: win.fg; font.pixelSize: Style.font.body }
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: { win.iconCount++; win.autosave() }
+          }
+        }
+
+        Text {
+          text: "How many app icons show next to a workspace name (0 turns them off). One icon per distinct app."
+          color: win.dim
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 2
+          Layout.fillWidth: true
+          wrapMode: Text.WordWrap
+        }
+      }
+
+      // How the marked workspace is drawn on the bar
+      RowLayout {
+        visible: win.tab === "settings"
         Layout.fillWidth: true
         spacing: 10
 
         Text {
-          text: "Rename hotkey"
+          text: "Bar style"
           color: win.dim
           font.family: Style.font.family
           font.pixelSize: Style.font.body - 1
+          Layout.preferredWidth: 110
         }
 
-        KeyCapture {
-          Layout.preferredWidth: 190
-          Layout.preferredHeight: 26
-          value: win.renameKey
-          fg: win.fg
-          dimColor: win.dim
-          lineColor: win.line
-          onCaptured: function(keys) { win.renameKey = keys }
+        Repeater {
+          model: win.barStyles
+
+          Rectangle {
+            required property string modelData
+            Layout.preferredWidth: 80
+            Layout.preferredHeight: 26
+            radius: 5
+            color: win.barStyle === modelData ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.15) : "transparent"
+            border.color: win.barStyle === modelData ? win.fg : win.line
+            border.width: 1
+
+            Text {
+              anchors.centerIn: parent
+              text: modelData
+              color: win.fg
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body - 2
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: { win.barStyle = modelData; win.autosave() }
+            }
+          }
         }
 
         Text {
-          text: "Jump hotkey"
+          text: "Plain colours the text only; pill fills behind it; underline rules beneath it."
           color: win.dim
           font.family: Style.font.family
-          font.pixelSize: Style.font.body - 1
+          font.pixelSize: Style.font.body - 2
+          Layout.fillWidth: true
+          wrapMode: Text.WordWrap
         }
-
-        KeyCapture {
-          Layout.preferredWidth: 190
-          Layout.preferredHeight: 26
-          value: win.jumpKey
-          fg: win.fg
-          dimColor: win.dim
-          lineColor: win.line
-          onCaptured: function(keys) { win.jumpKey = keys }
-        }
-
-        Text {
-          text: "Editor hotkey"
-          color: win.dim
-          font.family: Style.font.family
-          font.pixelSize: Style.font.body - 1
-        }
-
-        KeyCapture {
-          Layout.preferredWidth: 190
-          Layout.preferredHeight: 26
-          value: win.editorKey
-          fg: win.fg
-          dimColor: win.dim
-          lineColor: win.line
-          onCaptured: function(keys) { win.editorKey = keys }
-        }
-
-        Item { Layout.fillWidth: true }
       }
 
-      Rectangle { Layout.fillWidth: true; height: 1; color: win.line }
+      Item {
+        visible: win.tab === "settings"
+        Layout.fillHeight: true
+      }
+
+      Rectangle {
+        visible: win.tab === "workspaces"
+        Layout.fillWidth: true
+        height: 1
+        color: win.line
+      }
 
       ListView {
         id: list
+        visible: win.tab === "workspaces"
         Layout.fillWidth: true
         Layout.fillHeight: true
-        Layout.preferredHeight: contentHeight
+        Layout.preferredHeight: visible ? contentHeight : 0
         clip: true
         spacing: 2
         model: win.rows
@@ -456,7 +755,7 @@ PanelWindow {
                 selectByMouse: true
                 // Mutate in place rather than touch(): rebuilding the rows on
                 // every keystroke would destroy this field mid-word.
-                onTextEdited: win.rows[rowRoot.index].label = text
+                onTextEdited: { win.rows[rowRoot.index].label = text; win.autosave() }
                 Keys.onEscapePressed: win.close()
               }
             }
@@ -471,8 +770,8 @@ PanelWindow {
 
               Text {
                 anchors.centerIn: parent
-                text: rowRoot.row.monitor
-                color: win.fg
+                text: win.monitorLabel(rowRoot.row.monitor)
+                color: rowRoot.row.monitor === "" ? win.dim : win.fg
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body - 1
               }
@@ -605,7 +904,58 @@ PanelWindow {
                 onClicked: win.openAppsPicker(rowRoot.index)
               }
             }
+
+            Rectangle {
+              Layout.preferredWidth: 26
+              Layout.preferredHeight: 26
+              radius: 5
+              color: "transparent"
+              border.color: removeHover.containsMouse ? Color.urgent : win.line
+              border.width: 1
+
+              Text {
+                anchors.centerIn: parent
+                text: "🗑"
+                color: removeHover.containsMouse ? Color.urgent : win.dim
+                font.pixelSize: Style.font.body - 2
+              }
+
+              MouseArea {
+                id: removeHover
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: win.removeWorkspace(rowRoot.index)
+              }
+            }
           }
+        }
+      }
+
+      Rectangle {
+        visible: win.tab === "workspaces"
+        Layout.preferredWidth: addText.implicitWidth + 24
+        Layout.preferredHeight: 26
+        radius: 5
+        color: "transparent"
+        border.color: addHover.containsMouse ? win.fg : win.line
+        border.width: 1
+
+        Text {
+          id: addText
+          anchors.centerIn: parent
+          text: "+  Add workspace"
+          color: win.fg
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 1
+        }
+
+        MouseArea {
+          id: addHover
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: win.addWorkspace()
         }
       }
 
@@ -625,22 +975,14 @@ PanelWindow {
           Layout.fillWidth: true
         }
 
-        Item { Layout.fillWidth: win.errorText === "" }
-
-        Rectangle {
-          width: 90; height: 30; radius: 6
-          color: "transparent"
-          border.color: win.line
-          border.width: 1
-          Text { anchors.centerIn: parent; text: "Cancel"; color: win.dim; font.family: Style.font.family; font.pixelSize: Style.font.body }
-          MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.close() }
-        }
-
-        Rectangle {
-          width: 90; height: 30; radius: 6
-          color: win.fg
-          Text { anchors.centerIn: parent; text: "Save"; color: Color.background; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
-          MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.save() }
+        Text {
+          text: "Changes save as you make them · Esc closes"
+          visible: win.errorText === ""
+          color: win.dim
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 1
+          Layout.fillWidth: true
+          horizontalAlignment: Text.AlignRight
         }
       }
     }
