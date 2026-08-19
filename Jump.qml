@@ -75,7 +75,7 @@ PanelWindow {
       var ws = values[i]
       out.push({
         id: ws.id,
-        name: String(ws.name || ""),
+        name: widget ? widget.compactLabel(String(ws.name || "")) : String(ws.name || ""),
         monitorName: ws.monitor ? String(ws.monitor.name || "") : "",
         active: ws.active === true,
         urgent: ws.urgent === true

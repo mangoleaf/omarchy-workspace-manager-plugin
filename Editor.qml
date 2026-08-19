@@ -25,6 +25,7 @@ PanelWindow {
   property int iconCount: 3
   property string barStyle: "plain"
   property bool countFromZero: false
+  property bool compactNames: false
   property string lastAppliedPins: ""
   property string colorActive: ""
   property string colorUnfocused: ""
@@ -121,6 +122,7 @@ PanelWindow {
       icons: win.iconCount,
       style: win.barStyle,
       base: win.countFromZero ? "0" : "1",
+      compact: win.compactNames,
       coloractive: win.colorActive,
       colorunfocused: win.colorUnfocused,
       coloroccupied: win.colorOccupied,
@@ -378,6 +380,7 @@ PanelWindow {
     win.iconCount = widget ? widget.iconCount : 3
     win.barStyle = widget ? widget.barStyle : "plain"
     win.countFromZero = widget ? widget.countFromZero : false
+    win.compactNames = widget ? widget.compactNames : false
     win.colorActive = widget ? widget.colorActive : ""
     win.colorUnfocused = widget ? widget.colorUnfocused : ""
     win.colorOccupied = widget ? widget.colorOccupied : ""
@@ -833,6 +836,58 @@ PanelWindow {
 
         Text {
           text: "Hyprland has no workspace 0, so counting from 0 leaves your first workspace on id 1. This only affects the numbers the plugin generates and shows — names you have already written are left alone."
+          color: win.dim
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 2
+          Layout.fillWidth: true
+          wrapMode: Text.WordWrap
+        }
+      }
+
+      // Spacing after the "number:" prefix, on the bar only
+      RowLayout {
+        visible: win.tab === "settings"
+        Layout.fillWidth: true
+        spacing: 10
+
+        Text {
+          text: "Name spacing"
+          color: win.dim
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 1
+          Layout.preferredWidth: 110
+        }
+
+        Repeater {
+          model: [{ compact: false, label: "0: Test" }, { compact: true, label: "0:Test" }]
+
+          Rectangle {
+            required property var modelData
+            Layout.preferredWidth: 80
+            Layout.preferredHeight: 26
+            radius: 5
+            color: win.compactNames === modelData.compact ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.15) : "transparent"
+            border.color: win.compactNames === modelData.compact ? win.fg : win.line
+            border.width: 1
+
+            Text {
+              anchors.centerIn: parent
+              text: modelData.label
+              color: win.fg
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body - 2
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: { win.compactNames = modelData.compact; win.autosave() }
+            }
+          }
+        }
+
+        Text {
+          text: "Drops the space after the first colon when drawing a workspace. Display only — the name keeps its space, so renaming still works on the part after it."
           color: win.dim
           font.family: Style.font.family
           font.pixelSize: Style.font.body - 2

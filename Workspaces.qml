@@ -38,6 +38,25 @@ BarWidget {
     return root.countFromZero ? id - 1 : id
   }
 
+  // Display-only: the stored label keeps its space, so the rename popup can
+  // still split base from suffix on ": ". Only the first separator is
+  // touched — a name that happens to contain another one keeps it.
+  property bool compactNames: false
+
+  function compactLabel(label) {
+    var text = String(label)
+    var at = text.indexOf(":")
+    if (at === -1) return text
+
+    // Normalise rather than only strip, so the setting works whichever way
+    // the name was typed: a stored "0:Test" still shows as "0: Test" when
+    // spacing is on, and a stored "0: Test" still compacts when it is off.
+    var head = text.substring(0, at + 1)
+    var tail = text.substring(at + 1).replace(/^ +/, "")
+    if (tail === "") return head
+    return root.compactNames ? head + tail : head + " " + tail
+  }
+
   // Workspace colours. Blank means "follow the theme", which is the default
   // for everything except the unfocused-monitor marker — the theme has no
   // opinion about that state, so it needs a colour of its own.
@@ -62,7 +81,7 @@ BarWidget {
   function loadConf(t) {
     var out = []
     var settings = {
-      rename: "", jump: "", editor: "", center: "", centermoved: "", icons: "", style: "", base: "",
+      rename: "", jump: "", editor: "", center: "", centermoved: "", icons: "", style: "", base: "", compact: "",
       coloractive: "", colorunfocused: "", coloroccupied: "", colorempty: ""
     }
     var header = []
@@ -100,6 +119,7 @@ BarWidget {
     root.iconCount = settings.icons === "" ? root.defaultIconCount : parseInt(settings.icons)
     root.barStyle = settings.style === "" ? "plain" : settings.style
     root.countFromZero = settings.base === "0"
+    root.compactNames = settings.compact === "true"
     root.colorActive = settings.coloractive
     root.colorUnfocused = settings.colorunfocused
     root.colorOccupied = settings.coloroccupied
@@ -118,6 +138,7 @@ BarWidget {
       icons: root.iconCount,
       style: root.barStyle,
       base: root.countFromZero ? "0" : "1",
+      compact: root.compactNames,
       coloractive: root.colorActive,
       colorunfocused: root.colorUnfocused,
       coloroccupied: root.colorOccupied,
@@ -135,6 +156,7 @@ BarWidget {
     lines.push("icons|" + s.icons)
     lines.push("style|" + s.style)
     lines.push("base|" + s.base)
+    lines.push("compact|" + (s.compact ? "true" : "false"))
     if (s.coloractive !== "") lines.push("coloractive|" + s.coloractive)
     if (s.colorunfocused !== "") lines.push("colorunfocused|" + s.colorunfocused)
     if (s.coloroccupied !== "") lines.push("coloroccupied|" + s.coloroccupied)
@@ -221,10 +243,10 @@ BarWidget {
   // yet still has one, and that is what a freshly added workspace shows.
   function labelFor(id) {
     for (var i = 0; i < root.rows.length; i++)
-      if (root.rows[i].id === id && root.rows[i].label !== "") return root.rows[i].label
+      if (root.rows[i].id === id && root.rows[i].label !== "") return root.compactLabel(root.rows[i].label)
 
     var live = root.workspaceById(id)
-    return live && live.name !== "" ? live.name : String(id)
+    return root.compactLabel(live && live.name !== "" ? live.name : String(id))
   }
 
   // App icons for the windows on a workspace, one per distinct app so three
