@@ -24,6 +24,7 @@ PanelWindow {
   property string tab: "workspaces"
   property int iconCount: 3
   property string barStyle: "plain"
+  property bool countFromZero: false
   property string lastAppliedPins: ""
   property string colorActive: ""
   property string colorUnfocused: ""
@@ -119,6 +120,7 @@ PanelWindow {
       centermoved: win.centerMoved,
       icons: win.iconCount,
       style: win.barStyle,
+      base: win.countFromZero ? "0" : "1",
       coloractive: win.colorActive,
       colorunfocused: win.colorUnfocused,
       coloroccupied: win.colorOccupied,
@@ -299,7 +301,7 @@ PanelWindow {
     for (var i = 0; i < win.rows.length; i++) maxId = Math.max(maxId, win.rows[i].id)
     var next = maxId + 1
     var copy = win.rows.slice()
-    copy.push({ id: next, key: "", monitor: "", label: "Workspace " + next, apps: "" })
+    copy.push({ id: next, key: "", monitor: "", label: String(win.countFromZero ? next - 1 : next), apps: "" })
     win.rows = copy
     win.errorText = ""
     win.revision++
@@ -375,6 +377,7 @@ PanelWindow {
     win.centerMoved = widget ? widget.centerMoved : ""
     win.iconCount = widget ? widget.iconCount : 3
     win.barStyle = widget ? widget.barStyle : "plain"
+    win.countFromZero = widget ? widget.countFromZero : false
     win.colorActive = widget ? widget.colorActive : ""
     win.colorUnfocused = widget ? widget.colorUnfocused : ""
     win.colorOccupied = widget ? widget.colorOccupied : ""
@@ -390,6 +393,7 @@ PanelWindow {
     var screens = Quickshell.screens
     for (var s = 0; s < screens.length; s++)
       if (screens[s].name === focusedName) win.screen = screens[s]
+    win.openedOn = focusedName
 
     win.visible = true
     Qt.callLater(function() { if (win.visible) card.forceActiveFocus() })
@@ -431,6 +435,21 @@ PanelWindow {
   }
 
   function close() { win.visible = false }
+
+  // A click on another monitor moves Hyprland's focus there but never reaches
+  // this surface, which only covers the screen it opened on — so watch for the
+  // focus leaving and dismiss, the same as clicking the scrim.
+  property string openedOn: ""
+
+  Connections {
+    target: Hyprland
+    function onFocusedMonitorChanged() {
+      if (!win.visible || win.openedOn === "") return
+      var now = Hyprland.focusedMonitor ? String(Hyprland.focusedMonitor.name || "") : ""
+      if (now !== "" && now !== win.openedOn) win.close()
+    }
+  }
+
 
   // The rows are plain JS objects, so a mutation inside one is invisible to
   // QML bindings. Rebuild the array to make every delegate re-read its row.
@@ -770,6 +789,58 @@ PanelWindow {
         }
       }
 
+      // How the user counts workspaces
+      RowLayout {
+        visible: win.tab === "settings"
+        Layout.fillWidth: true
+        spacing: 10
+
+        Text {
+          text: "Numbering"
+          color: win.dim
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 1
+          Layout.preferredWidth: 110
+        }
+
+        Repeater {
+          model: [{ zero: false, label: "From 1" }, { zero: true, label: "From 0" }]
+
+          Rectangle {
+            required property var modelData
+            Layout.preferredWidth: 80
+            Layout.preferredHeight: 26
+            radius: 5
+            color: win.countFromZero === modelData.zero ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.15) : "transparent"
+            border.color: win.countFromZero === modelData.zero ? win.fg : win.line
+            border.width: 1
+
+            Text {
+              anchors.centerIn: parent
+              text: modelData.label
+              color: win.fg
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body - 2
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: { win.countFromZero = modelData.zero; win.autosave() }
+            }
+          }
+        }
+
+        Text {
+          text: "Hyprland has no workspace 0, so counting from 0 leaves your first workspace on id 1. This only affects the numbers the plugin generates and shows — names you have already written are left alone."
+          color: win.dim
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 2
+          Layout.fillWidth: true
+          wrapMode: Text.WordWrap
+        }
+      }
+
       // Workspace colours — blank follows the theme
       ColumnLayout {
         visible: win.tab === "settings"
@@ -914,6 +985,26 @@ PanelWindow {
           RowLayout {
             anchors.fill: parent
             spacing: 10
+
+            // The number this workspace is under the chosen numbering, next to
+            // the Hyprland id it actually maps to — the offset a count-from-0
+            // numpad user lives with, made visible instead of remembered.
+            Text {
+              text: widget ? String(widget.displayNumber(rowRoot.row.id)) : String(rowRoot.row.id)
+              color: win.dim
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body - 1
+              horizontalAlignment: Text.AlignRight
+              Layout.preferredWidth: 22
+            }
+
+            Text {
+              text: "→ " + rowRoot.row.id
+              color: Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.3)
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body - 3
+              Layout.preferredWidth: 34
+            }
 
             Rectangle {
               Layout.preferredWidth: 240

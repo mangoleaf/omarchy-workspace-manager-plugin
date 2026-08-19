@@ -308,8 +308,18 @@ function indexOfFirstWindow(rows) {
 // output instead of moving focus to where it already lives, which silently
 // rearranges the other monitor.
 function focusCommands(row) {
-  if (row.kind === "window" && row.address)
-    return ['hl.dsp.focus({ window = "address:' + row.address + '" })']
+  // Focusing a window does NOT carry you to it: hl.focus with a window
+  // selector reports ok and does nothing when the window lives on another
+  // workspace. Verified against Hyprland 0.56 — same-workspace focus works,
+  // cross-workspace silently no-ops. So walk in: monitor, then workspace,
+  // then the window itself.
+  if (row.kind === "window" && row.address) {
+    var steps = []
+    if (row.monitorName) steps.push('hl.dsp.focus({ monitor = "' + row.monitorName + '" })')
+    if (row.workspaceId) steps.push('hl.dsp.focus({ workspace = "' + row.workspaceId + '" })')
+    steps.push('hl.dsp.focus({ window = "address:' + row.address + '" })')
+    return steps
+  }
 
   if (row.kind === "workspace")
     return [

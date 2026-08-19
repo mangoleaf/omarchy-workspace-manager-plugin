@@ -28,6 +28,16 @@ BarWidget {
   property int iconCount: defaultIconCount
   property string barStyle: "plain"
 
+  // Hyprland has no workspace 0, so a numpad user who thinks of their first
+  // workspace as 0 runs permanently one ahead of the ids. This only tells the
+  // plugin how they count, so generated names and displayed numbers agree
+  // with the numpad rather than with Hyprland.
+  property bool countFromZero: false
+
+  function displayNumber(id) {
+    return root.countFromZero ? id - 1 : id
+  }
+
   // Workspace colours. Blank means "follow the theme", which is the default
   // for everything except the unfocused-monitor marker — the theme has no
   // opinion about that state, so it needs a colour of its own.
@@ -52,7 +62,7 @@ BarWidget {
   function loadConf(t) {
     var out = []
     var settings = {
-      rename: "", jump: "", editor: "", center: "", centermoved: "", icons: "", style: "",
+      rename: "", jump: "", editor: "", center: "", centermoved: "", icons: "", style: "", base: "",
       coloractive: "", colorunfocused: "", coloroccupied: "", colorempty: ""
     }
     var header = []
@@ -89,6 +99,7 @@ BarWidget {
     root.centerMoved = settings.centermoved
     root.iconCount = settings.icons === "" ? root.defaultIconCount : parseInt(settings.icons)
     root.barStyle = settings.style === "" ? "plain" : settings.style
+    root.countFromZero = settings.base === "0"
     root.colorActive = settings.coloractive
     root.colorUnfocused = settings.colorunfocused
     root.colorOccupied = settings.coloroccupied
@@ -106,6 +117,7 @@ BarWidget {
       centermoved: root.centerMoved,
       icons: root.iconCount,
       style: root.barStyle,
+      base: root.countFromZero ? "0" : "1",
       coloractive: root.colorActive,
       colorunfocused: root.colorUnfocused,
       coloroccupied: root.colorOccupied,
@@ -122,6 +134,7 @@ BarWidget {
     if (s.centermoved !== "") lines.push("centermoved|" + s.centermoved)
     lines.push("icons|" + s.icons)
     lines.push("style|" + s.style)
+    lines.push("base|" + s.base)
     if (s.coloractive !== "") lines.push("coloractive|" + s.coloractive)
     if (s.colorunfocused !== "") lines.push("colorunfocused|" + s.colorunfocused)
     if (s.coloroccupied !== "") lines.push("coloroccupied|" + s.coloroccupied)

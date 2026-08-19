@@ -49,6 +49,7 @@ PanelWindow {
     var focusedName = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : ""
     for (var s = 0; s < screens.length; s++)
       if (screens[s].name === focusedName) win.screen = screens[s]
+    win.openedOn = focusedName
 
     win.visible = true
     Qt.callLater(function() {
@@ -59,6 +60,21 @@ PanelWindow {
   }
 
   function close() { win.visible = false }
+
+  // A click on another monitor moves Hyprland's focus there but never reaches
+  // this surface, which only covers the screen it opened on — so watch for the
+  // focus leaving and dismiss, the same as clicking the scrim.
+  property string openedOn: ""
+
+  Connections {
+    target: Hyprland
+    function onFocusedMonitorChanged() {
+      if (!win.visible || win.openedOn === "") return
+      var now = Hyprland.focusedMonitor ? String(Hyprland.focusedMonitor.name || "") : ""
+      if (now !== "" && now !== win.openedOn) win.close()
+    }
+  }
+
 
   function apply() {
     var suffix = input.text.trim()

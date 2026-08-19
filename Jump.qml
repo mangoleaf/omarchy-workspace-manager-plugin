@@ -189,6 +189,7 @@ PanelWindow {
     var screens = Quickshell.screens
     for (var i = 0; i < screens.length; i++)
       if (screens[i].name === focusedName) win.screen = screens[i]
+    win.openedOn = focusedName
 
     input.text = ""
     win.query = ""
@@ -211,17 +212,62 @@ PanelWindow {
 
   function close() { win.visible = false }
 
+  // A click on another monitor moves Hyprland's focus there but never reaches
+  // this surface, which only covers the screen it opened on — so watch for the
+  // focus leaving and dismiss, the same as clicking the scrim.
+  property string openedOn: ""
+
+  Connections {
+    target: Hyprland
+    function onFocusedMonitorChanged() {
+      if (!win.visible || win.openedOn === "") return
+      var now = Hyprland.focusedMonitor ? String(Hyprland.focusedMonitor.name || "") : ""
+      if (now !== "" && now !== win.openedOn) win.close()
+    }
+  }
+
+
+  property var pendingCommands: []
+  property bool pendingWarp: false
+
   function jump() {
     if (win.rows.length === 0) return
     var row = win.rows[Math.min(win.selected, win.rows.length - 1)]
-    var commands = TreeModel.focusCommands(row)
-    for (var i = 0; i < commands.length; i++) Hyprland.dispatch(commands[i])
-    // Warp the cursor to the center of the now-focused window, otherwise
-    // hover focus snaps right back to whatever the mouse is sitting on.
-    // Done via hyprctl AFTER the focus lands, so the geometry is the target
-    // window's real position (absolute coordinates = correct display too).
-    if (row.kind === "window") warpProc.running = true
+    win.pendingCommands = TreeModel.focusCommands(row)
+    win.pendingWarp = row.kind === "window"
+    // Close BEFORE focusing. This surface holds exclusive keyboard focus, and
+    // the compositor hands focus back to whatever held it previously when the
+    // surface goes away — which would land after our dispatch and undo it.
     close()
+    dispatchTimer.restart()
+  }
+
+  // One command per tick, not all at once. Each step has to land before the
+  // next makes sense: focusing the window while its workspace is still
+  // switching is the same silent no-op as focusing across workspaces, so
+  // firing them back to back leaves you on the right workspace with the
+  // wrong window focused.
+  // ponytail: 40ms is a step gap that holds on this machine; if a slower one
+  // drops the last step, this is the number to raise.
+  Timer {
+    id: dispatchTimer
+    interval: 40
+    repeat: true
+    onTriggered: {
+      if (win.pendingCommands.length > 0) {
+        var next = win.pendingCommands[0]
+        win.pendingCommands = win.pendingCommands.slice(1)
+        Hyprland.dispatch(next)
+        return
+      }
+
+      dispatchTimer.stop()
+      // Warp the cursor into the focused window, or hover focus snaps back to
+      // whatever the pointer is still sitting on. Measured after the fact via
+      // hyprctl, so it reads the window that actually ended up focused.
+      if (win.pendingWarp) warpProc.running = true
+      win.pendingWarp = false
+    }
   }
 
   Process {
