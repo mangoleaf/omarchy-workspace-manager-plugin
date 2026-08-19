@@ -591,7 +591,7 @@ PanelWindow {
 
       Text {
         visible: win.tab === "workspaces"
-        text: "Name — click to edit. Monitor — click to cycle, including “Any monitor” to leave a workspace unpinned. Hotkey — click, then press the keys (SUPER is implied on workspace keys). Apps — “+” pins an app so it always opens here; drag a tag to another workspace to move it, “✕” unpins it. Saving applies everything and moves any pinned app's open windows to its workspace."
+        text: "Name — click to edit. Monitor — click to cycle, including “Any monitor” to leave a workspace unpinned. Hotkey — click, then press the keys; SUPER is shown but not typed, workspace keys are relative to it. Apps — “+” pins an app so it always opens here; drag a tag to another workspace to move it, “✕” unpins it. Saving applies everything and moves any pinned app's open windows to its workspace."
         color: win.dim
         font.family: Style.font.family
         font.pixelSize: Style.font.body - 1
@@ -1160,7 +1160,7 @@ PanelWindow {
             { title: "No.", width: 54 },
             { title: "Name", width: 200 },
             { title: "Monitor", width: 130 },
-            { title: "Hotkey", width: 200 },
+            { title: "Hotkey", width: 230 },
             { title: "Pinned apps", width: -1 },
             { title: "", width: 26 },
             { title: "", width: 26 }
@@ -1310,9 +1310,10 @@ PanelWindow {
             }
 
             KeyCapture {
-              Layout.preferredWidth: 200
+              Layout.preferredWidth: 230
               Layout.preferredHeight: 26
               value: rowRoot.row.key
+              displayPrefix: "SUPER + "
               stripSuper: true
               fg: win.fg
               dimColor: win.dim

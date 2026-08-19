@@ -10,6 +10,11 @@ Rectangle {
   id: root
 
   property string value: ""
+
+  // Shown in front of the value but never stored. Workspace keys are held
+  // SUPER-relative in the config, and reading "KP_Insert" gives no clue
+  // what you actually press.
+  property string displayPrefix: ""
   property bool stripSuper: false
   property bool capturing: false
   property color fg: Color.foreground
@@ -62,7 +67,8 @@ Rectangle {
     anchors.leftMargin: 8
     anchors.rightMargin: 8
     verticalAlignment: Text.AlignVCenter
-    text: root.capturing ? "press keys… (Esc cancels)" : (root.value === "" ? "click to set" : root.value)
+    text: root.capturing ? "press keys… (Esc cancels)"
+        : (root.value === "" ? "click to set" : root.displayPrefix + root.value)
     color: root.capturing || root.value === "" ? root.dimColor : root.fg
     font.family: Style.font.family
     font.pixelSize: Style.font.body - 1
