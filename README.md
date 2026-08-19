@@ -230,6 +230,29 @@ so a hand-written config can leave any of them out and still be valid.
 No field may contain `|`. The editor enforces this; if you hand-edit, keep to
 it.
 
+## What it writes
+
+The plugin writes two files, and nothing else on your system.
+
+`~/.config/hypr/workspaces.conf` is its own file: it is created and rewritten
+by the editor, and holds every workspace definition and setting described
+above.
+
+`~/.config/omarchy/shell.json` belongs to the shell, and is touched only when
+you tick or untick *Center the workspaces in the bar*. That write is a full
+JSON round-trip that preserves every other key in the file — your idle
+timings, plugin list and the rest are read back and written out unchanged —
+and it is undone by unticking the option.
+
+`monitors.lua` and `bindings.lua` are **never** written. The snippets in
+[Setup](#setup) are yours to add and yours to remove; the plugin only reads
+the config file they point at.
+
+Saving in the editor also runs `hyprctl reload` and applies workspace names,
+monitor assignments and pinned-app window moves to the running session. Those
+are live compositor actions, not file changes, and nothing is written to disk
+beyond the two files above.
+
 ## Uninstall
 
 ```bash
