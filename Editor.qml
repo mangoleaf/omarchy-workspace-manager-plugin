@@ -591,7 +591,7 @@ PanelWindow {
 
       Text {
         visible: win.tab === "workspaces"
-        text: "Name — click to edit. Monitor — click to cycle, including “Any monitor” to leave a workspace unpinned. Hotkey — click, then press the keys; SUPER is shown but not typed, workspace keys are relative to it. Apps — “+” pins an app so it always opens here; drag a tag to another workspace to move it, “✕” unpins it. Saving applies everything and moves any pinned app's open windows to its workspace."
+        text: "Everything here saves as you change it — Esc closes. Click a number, name or monitor to edit it; “Any monitor” leaves a workspace free to open wherever focus is. Click a hotkey and press the combination you want: your existing bindings are suspended while it listens, so a key that is already taken still records, and SUPER is implied on workspace rows. “+” pins an app so it always opens on that workspace, a tag can be dragged to another workspace to move the pin, and “✕” unpins it — a pinned app's open windows follow. A workspace can only be deleted once its windows have moved elsewhere."
         color: win.dim
         font.family: Style.font.family
         font.pixelSize: Style.font.body - 1
