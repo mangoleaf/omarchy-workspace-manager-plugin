@@ -28,115 +28,25 @@ and keybindings, so the two are wired together by the config below.
 
 ## Setup
 
-The plugin keeps every workspace definition in one file,
-`~/.config/hypr/workspaces.conf`, and Hyprland reads the same file. Add both
-snippets, then restart the shell.
+Every workspace definition lives in one file, `~/.config/hypr/workspaces.conf`.
+Hyprland has to read it too, which takes one line in each of two configs.
 
-**`~/.config/hypr/monitors.lua`** — workspace rules: name, monitor, and the
-apps pinned to each workspace.
+**The easy way.** Right-click the widget in the bar to open the editor. Until
+Hyprland is wired up it shows a setup notice with an **Add to Hyprland**
+button, which appends the two lines for you, backs both files up first, and
+reloads. Skip to [The editor](#the-editor).
 
-```lua
-local seen_monitor = {}
-local settings = { number = "true", delim = ":", compact = "false" }
-local f = io.open(os.getenv("HOME") .. "/.config/hypr/workspaces.conf")
-if f then
-  for line in f:lines() do
-    -- id|key|monitor|name|apps|number
-    local id, key, mon, name, apps, num =
-      line:match("^(%d+)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|?([^|]*)$")
-    if not id then
-      -- Older five-field rows: field 4 holds the combined "0: Name".
-      id, key, mon, name, apps = line:match("^(%d+)|([^|]*)|([^|]*)|([^|]*)|?([^|]*)$")
-      num = ""
-    end
-
-    if id then
-      -- The name a workspace carries until the plugin renames it, composed
-      -- the way the plugin composes it.
-      local label = name
-      if settings.number ~= "false" and num ~= "" then
-        if name == "" then
-          label = num
-        elseif settings.compact == "true" then
-          label = num .. settings.delim .. name
-        else
-          label = num .. settings.delim .. " " .. name
-        end
-      end
-
-      local rule = {
-        workspace = id,
-        default_name = label,
-        persistent = true,
-      }
-
-      -- An empty monitor field leaves the workspace unpinned: it follows
-      -- focus instead of living on one output.
-      if mon ~= "" then
-        rule.monitor = mon
-        rule.default = not seen_monitor[mon]
-        seen_monitor[mon] = true
-      end
-
-      hl.workspace_rule(rule)
-
-      for app in (apps or ""):gmatch("[^,]+") do
-        local pattern = app:match("^%s*(.-)%s*$")
-        if pattern ~= "" then
-          o.window(pattern, { workspace = id })
-        end
-      end
-    else
-      local k, v = line:match("^(%a+)|(.*)$")
-      if k and settings[k] ~= nil then settings[k] = v end
-    end
-  end
-  f:close()
-end
-```
-
-**`~/.config/hypr/bindings.lua`** — per-workspace keys and the three plugin
-hotkeys.
+**By hand**, if you would rather see exactly what lands where. Add to
+`~/.config/hypr/monitors.lua`:
 
 ```lua
-local f = io.open(os.getenv("HOME") .. "/.config/hypr/workspaces.conf")
-if f then
-  for line in f:lines() do
-    local id, key, mon, name = line:match("^(%d+)|([^|]*)|([^|]*)|([^|]*)")
-    local num = line:match("^%d+|[^|]*|[^|]*|[^|]*|[^|]*|([^|]*)$")
-    if id and key ~= "" then
-      local base = (num and num ~= "") and num or name
-      if name ~= "" and num and num ~= "" then base = num .. ": " .. name end
-      o.bind("SUPER + " .. key, "Switch to workspace " .. base, hl.dsp.focus({ workspace = id }))
-      o.bind("SUPER + SHIFT + " .. key, "Move to workspace " .. base, hl.dsp.window.move({ workspace = id }))
-      o.bind("SUPER + CTRL + " .. key, "Move silently to workspace " .. base, hl.dsp.window.move({ workspace = id, follow = false }))
-    else
-      local action, keys = line:match("^(%a+)|(.+)$")
-      -- Unbind first so these keys can take over an Omarchy default.
-      if action == "rename" then
-        hl.unbind(keys)
-        o.bind(keys, "Rename workspace", "omarchy-shell mangoleaf.workspace-manager rename")
-      elseif action == "jump" then
-        hl.unbind(keys)
-        o.bind(keys, "Jump to workspace", "omarchy-shell shell toggle mangoleaf.workspace-manager")
-      elseif action == "editor" then
-        hl.unbind(keys)
-        o.bind(keys, "Workspace editor", "omarchy-shell mangoleaf.workspace-manager editor")
-      end
-    end
-  end
-  f:close()
-end
+dofile(os.getenv("HOME") .. "/.config/omarchy/plugins/mangoleaf.workspace-manager/hypr/workspace-rules.lua")
 ```
 
-The three hotkey commands are not typos for each other. `rename` and `editor`
-are calls into this plugin's own IPC target, while the finder goes through the
-shell's bar-widget summon path:
+and to `~/.config/hypr/bindings.lua`:
 
-```
-omarchy-shell mangoleaf.workspace-manager rename
-omarchy-shell mangoleaf.workspace-manager editor
-omarchy-shell shell toggle mangoleaf.workspace-manager
+```lua
+dofile(os.getenv("HOME") .. "/.config/omarchy/plugins/mangoleaf.workspace-manager/hypr/workspace-binds.lua")
 ```
 
 Then:
@@ -144,6 +54,29 @@ Then:
 ```bash
 omarchy restart shell
 ```
+
+The Lua those lines load ships with the plugin, in `hypr/`. It builds a
+workspace rule per line of `workspaces.conf` — name, monitor, pinned apps —
+and binds `SUPER + key` to switch, `SUPER + SHIFT + key` to move a window
+there, and `SUPER + CTRL + key` to move one without following. It also binds
+the three plugin hotkeys. Because it ships with the plugin, it updates when
+the plugin does, and there is no pasted copy to drift out of date.
+
+The three hotkeys are not typos for each other. `rename` and `editor` call
+this plugin's own IPC target, while the finder goes through the shell's
+bar-widget summon path:
+
+```
+omarchy-shell mangoleaf.workspace-manager rename
+omarchy-shell mangoleaf.workspace-manager editor
+omarchy-shell shell toggle mangoleaf.workspace-manager
+```
+
+Those are bind targets, not commands to run in a terminal. `omarchy-shell`
+locates the running shell through `$OMARCHY_PATH`, and a shell started before
+an Omarchy upgrade can carry a stale one — in which case it reports
+"omarchy-shell is not running" even though it is. Hyprland always has the
+right value, so the hotkeys work regardless; a fresh login fixes the terminal.
 
 Right-click the widget to open the editor and add your first workspaces.
 
@@ -312,9 +245,13 @@ values intact — and it is undone by unticking the option. The file is
 re-serialised at two-space indent, so hand formatting is normalised, though
 nothing is lost: JSON has no comments.
 
-`monitors.lua` and `bindings.lua` are **never** written. The snippets in
-[Setup](#setup) are yours to add and yours to remove; the plugin only reads
-the config file they point at.
+`~/.config/hypr/monitors.lua` and `~/.config/hypr/bindings.lua` are written in
+exactly one circumstance: you press **Add to Hyprland** in the editor's setup
+notice. It appends one `dofile` line to each, inside a marked block, after
+copying both files to timestamped backups beside them. Nothing else in either
+file is touched, it will not add a line that is already there, and deleting
+the block is a clean uninstall. Wire them up by hand instead and the plugin
+never writes them at all.
 
 Saving in the editor also runs `hyprctl reload` and applies workspace names,
 monitor assignments and pinned-app window moves to the running session.
@@ -335,7 +272,8 @@ written to disk beyond the two files above.
 omarchy plugin remove mangoleaf.workspace-manager
 ```
 
-Then remove the two Lua snippets above, and delete
+Then delete the `-- >>> omarchy-workspace-manager` block from
+`~/.config/hypr/monitors.lua` and `~/.config/hypr/bindings.lua`, and delete
 `~/.config/hypr/workspaces.conf` if you want the workspace rules gone too.
 If you had *Center the workspaces in the bar* enabled, untick it before
 removing the plugin, so the displaced widgets return to the center on their

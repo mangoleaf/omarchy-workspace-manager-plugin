@@ -589,6 +589,70 @@ PanelWindow {
         Item { Layout.fillWidth: true }
       }
 
+      // Shown only until Hyprland is wired up. Without it the widget draws
+      // but nothing switches, binds or persists, which is a confusing state
+      // to leave someone in silently.
+      Rectangle {
+        visible: win.tab === "workspaces" && widget && !widget.hyprConfigInstalled
+        Layout.fillWidth: true
+        Layout.preferredHeight: setupRow.implicitHeight + 20
+        radius: 6
+        color: Qt.rgba(Color.urgent.r, Color.urgent.g, Color.urgent.b, 0.10)
+        border.color: Color.urgent
+        border.width: 1
+
+        RowLayout {
+          id: setupRow
+          anchors.fill: parent
+          anchors.margins: 10
+          spacing: 12
+
+          ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 2
+
+            Text {
+              text: "Hyprland is not wired up yet"
+              color: win.fg
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+              font.bold: true
+            }
+
+            Text {
+              text: "Workspaces will not switch, bind or persist until two lines are added to your monitors.lua and bindings.lua. Both files are backed up first, and the lines sit in a marked block you can delete."
+              color: win.dim
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body - 2
+              Layout.fillWidth: true
+              wrapMode: Text.WordWrap
+            }
+          }
+
+          Rectangle {
+            Layout.preferredWidth: 150
+            Layout.preferredHeight: 30
+            radius: 6
+            color: win.fg
+
+            Text {
+              anchors.centerIn: parent
+              text: "Add to Hyprland"
+              color: Color.background
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+              font.bold: true
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (widget) widget.installHyprConfig()
+            }
+          }
+        }
+      }
+
       Text {
         visible: win.tab === "workspaces"
         text: "Everything here saves as you change it — Esc closes. Click a number, name or monitor to edit it; “Any monitor” leaves a workspace free to open wherever focus is. Click a hotkey and press the combination you want: your existing bindings are suspended while it listens, so a key that is already taken still records, and SUPER is implied on workspace rows. “+” pins an app so it always opens on that workspace, a tag can be dragged to another workspace to move the pin, and “✕” unpins it — a pinned app's open windows follow. A workspace can only be deleted once its windows have moved elsewhere."

@@ -373,6 +373,78 @@ BarWidget {
     if (jumpLoader.item) jumpLoader.item.close()
   }
 
+  // Wiring Hyprland up used to mean pasting ~120 lines of Lua into two files
+  // by hand. The Lua ships with the plugin instead, and each file needs one
+  // line that loads it — which the editor can add, so nobody has to paste
+  // anything they cannot read.
+  readonly property string hyprMarker: "-- >>> omarchy-workspace-manager"
+  readonly property string pluginHyprDir:
+    Quickshell.env("HOME") + "/.config/omarchy/plugins/mangoleaf.workspace-manager/hypr/"
+
+  FileView {
+    id: monitorsFile
+    path: Quickshell.env("HOME") + "/.config/hypr/monitors.lua"
+    watchChanges: true
+    printErrors: false
+  }
+
+  FileView {
+    id: bindingsFile
+    path: Quickshell.env("HOME") + "/.config/hypr/bindings.lua"
+    watchChanges: true
+    printErrors: false
+  }
+
+  function hyprBlock(file) {
+    return "\n" + root.hyprMarker + " (managed block — safe to remove)\n"
+      + 'dofile(os.getenv("HOME") .. "/.config/omarchy/plugins/mangoleaf.workspace-manager/hypr/'
+      + file + '")\n'
+      + "-- <<< omarchy-workspace-manager\n"
+  }
+
+  // Counts as installed however it got there: someone who pasted the Lua by
+  // hand from an older README has a working setup, and must not be offered a
+  // second copy of it.
+  function hyprFileConfigured(view) {
+    var text = view.text()
+    if (text.indexOf(root.hyprMarker) !== -1) return true
+    // Someone who pasted the Lua from an older README has a working setup and
+    // must not be offered a second copy. Look for the code that reads the
+    // config, not a mention of it — every one of these files carries a
+    // comment naming workspaces.conf.
+    return text.indexOf("io.open") !== -1 && text.indexOf("workspaces.conf") !== -1
+  }
+
+  readonly property bool hyprConfigInstalled:
+    root.confRevision >= 0
+    && root.hyprFileConfigured(monitorsFile)
+    && root.hyprFileConfigured(bindingsFile)
+
+  // Bumped when either file changes, so the editor's banner re-evaluates.
+  property int confRevision: 0
+  Connections { target: monitorsFile; function onFileChanged() { root.confRevision++ } }
+  Connections { target: bindingsFile; function onFileChanged() { root.confRevision++ } }
+
+  Process {
+    id: hyprBackup
+    command: ["sh", "-c",
+      'for f in "$HOME/.config/hypr/monitors.lua" "$HOME/.config/hypr/bindings.lua"; do '
+      + '[ -f "$f" ] && cp "$f" "$f.bak.$(date +%s)"; done']
+    onExited: {
+      if (!root.hyprFileConfigured(monitorsFile))
+        monitorsFile.setText(monitorsFile.text() + root.hyprBlock("workspace-rules.lua"))
+      if (!root.hyprFileConfigured(bindingsFile))
+        bindingsFile.setText(bindingsFile.text() + root.hyprBlock("workspace-binds.lua"))
+      root.confRevision++
+      applyTimer.restart()
+    }
+  }
+
+  // Back up first, then append. Never touches either file unless asked.
+  function installHyprConfig() {
+    hyprBackup.running = true
+  }
+
   // Hyprland matches its own keybinds before a client ever sees the keys, so
   // arming a capture box is not enough: pressing an already-bound combination
   // fires that binding instead of being captured. A submap suspends the
