@@ -626,6 +626,7 @@ PanelWindow {
             }
 
             KeyCapture {
+              widget: win.widget
               Layout.preferredWidth: 190
               Layout.preferredHeight: 26
               value: modelData.key === "rename" ? win.renameKey
@@ -1310,6 +1311,7 @@ PanelWindow {
             }
 
             KeyCapture {
+              widget: win.widget
               Layout.preferredWidth: 230
               Layout.preferredHeight: 26
               value: rowRoot.row.key

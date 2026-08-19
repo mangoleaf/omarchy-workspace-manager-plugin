@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell.Hyprland
 import qs.Commons
 
 // Click-to-capture hotkey box: click it, press the desired combination, and
@@ -10,6 +11,11 @@ Rectangle {
   id: root
 
   property string value: ""
+
+  // Set by whoever hosts this box, so capturing can suspend Hyprland's own
+  // keybinds — otherwise an already-bound combination fires instead of
+  // being captured.
+  property var widget: null
 
   // Shown in front of the value but never stored. Workspace keys are held
   // SUPER-relative in the config, and reading "KP_Insert" gives no clue
@@ -90,6 +96,20 @@ Rectangle {
   focus: false
   activeFocusOnTab: true
   onActiveFocusChanged: if (!activeFocus) root.capturing = false
+
+  onCapturingChanged: {
+    if (!root.widget) return
+    if (root.capturing) { root.widget.beginKeyCapture(); captureTimeout.restart() }
+    else { root.widget.endKeyCapture(); captureTimeout.stop() }
+  }
+
+  // Never leave the bindings suspended: if a capture is armed and forgotten,
+  // it gives up on its own rather than stranding the keyboard.
+  Timer {
+    id: captureTimeout
+    interval: 15000
+    onTriggered: root.capturing = false
+  }
 
   Keys.onPressed: function(event) {
     if (!root.capturing) return

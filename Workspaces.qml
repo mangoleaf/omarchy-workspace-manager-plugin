@@ -373,6 +373,30 @@ BarWidget {
     if (jumpLoader.item) jumpLoader.item.close()
   }
 
+  // Hyprland matches its own keybinds before a client ever sees the keys, so
+  // arming a capture box is not enough: pressing an already-bound combination
+  // fires that binding instead of being captured. A submap suspends the
+  // normal bindings while capturing. It cannot be empty — Hyprland will not
+  // enter a submap with no bindings — so it holds one deliberately
+  // unreachable combination, leaving every real key to fall through to us.
+  readonly property string captureSubmap: "mangoleaf-capture"
+
+  Process {
+    id: defineSubmap
+    running: true
+    command: ["hyprctl", "eval",
+      'hl.define_submap("' + root.captureSubmap + '", function() '
+      + 'hl.bind("CTRL + ALT + SHIFT + SUPER + XF86Launch9", hl.dsp.submap("reset")) end)']
+  }
+
+  function beginKeyCapture() {
+    Hyprland.dispatch('hl.dsp.submap("' + root.captureSubmap + '")')
+  }
+
+  function endKeyCapture() {
+    Hyprland.dispatch('hl.dsp.submap("reset")')
+  }
+
   // The editor hotkey routes here. A bar widget exists per monitor and IPC
   // reaches exactly one of them, which is what a single modal editor wants.
   IpcHandler {
