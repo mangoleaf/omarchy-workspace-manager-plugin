@@ -100,6 +100,16 @@ if f then
 end
 ```
 
+The three hotkey commands are not typos for each other. `rename` and `editor`
+are calls into this plugin's own IPC target, while the finder goes through the
+shell's bar-widget summon path:
+
+```
+omarchy-shell mangoleaf.workspace-manager rename
+omarchy-shell mangoleaf.workspace-manager editor
+omarchy-shell shell toggle mangoleaf.workspace-manager
+```
+
 Then:
 
 ```bash
@@ -107,6 +117,17 @@ omarchy restart shell
 ```
 
 Right-click the widget to open the editor and add your first workspaces.
+
+## In the bar
+
+Each bar shows the workspaces pinned to its own monitor. A workspace left
+unpinned appears on whichever monitor it currently occupies and moves between
+bars along with it, so it is never shown twice or not at all.
+
+The focused workspace is highlighted; occupied workspaces are bright and empty
+ones dimmed. On a monitor that does not have focus, its active workspace is
+drawn in a distinct colour so you can see where you will land when focus moves
+there.
 
 ## The editor
 
@@ -185,9 +206,13 @@ icons|3
 style|pill
 ```
 
-`icons` is how many app icons appear beside a workspace name in the bar (`0`
-for none) and `style` is how the bar draws them — `plain`, `pill` or
-`underline`.
+`icons` is how many app icons appear beside a workspace name in the bar,
+default `3`, or `0` for none. `style` is how the bar draws workspaces —
+`plain` (default), `pill` or `underline`.
+
+The editor always writes `center`, `icons` and `style`, and writes
+`rename`, `jump`, `editor` and `centermoved` only when they are set — so a
+hand-written config can leave any of them out and still be valid.
 
 No field may contain `|`. The editor enforces this; if you hand-edit, keep to
 it.
