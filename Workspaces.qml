@@ -28,9 +28,14 @@ BarWidget {
   property int iconCount: defaultIconCount
   property string barStyle: "plain"
 
-  // The active workspace on a monitor that does not have focus, so a glance
-  // at the other screen still says where you were.
-  readonly property color unfocusedActiveColor: "#ff9e3f"
+  // Workspace colours. Blank means "follow the theme", which is the default
+  // for everything except the unfocused-monitor marker — the theme has no
+  // opinion about that state, so it needs a colour of its own.
+  readonly property string defaultUnfocusedColor: "#ff9e3f"
+  property string colorActive: ""
+  property string colorUnfocused: ""
+  property string colorOccupied: ""
+  property string colorEmpty: ""
   readonly property string confPath: Quickshell.env("HOME") + "/.config/hypr/workspaces.conf"
 
   readonly property string screenName: {
@@ -40,7 +45,10 @@ BarWidget {
 
   function loadConf(t) {
     var out = []
-    var settings = { rename: "", jump: "", editor: "", center: "", centermoved: "", icons: "", style: "" }
+    var settings = {
+      rename: "", jump: "", editor: "", center: "", centermoved: "", icons: "", style: "",
+      coloractive: "", colorunfocused: "", coloroccupied: "", colorempty: ""
+    }
     var lines = (t || "").split("\n")
     for (var i = 0; i < lines.length; i++) {
       var p = lines[i].split("|")
@@ -57,6 +65,10 @@ BarWidget {
     root.centerMoved = settings.centermoved
     root.iconCount = settings.icons === "" ? root.defaultIconCount : parseInt(settings.icons)
     root.barStyle = settings.style === "" ? "plain" : settings.style
+    root.colorActive = settings.coloractive
+    root.colorUnfocused = settings.colorunfocused
+    root.colorOccupied = settings.coloroccupied
+    root.colorEmpty = settings.colorempty
   }
 
   // Everything that knows the file format lives here, so the editor and the
@@ -69,7 +81,11 @@ BarWidget {
       center: root.centerBar,
       centermoved: root.centerMoved,
       icons: root.iconCount,
-      style: root.barStyle
+      style: root.barStyle,
+      coloractive: root.colorActive,
+      colorunfocused: root.colorUnfocused,
+      coloroccupied: root.colorOccupied,
+      colorempty: root.colorEmpty
     }
   }
 
@@ -82,6 +98,10 @@ BarWidget {
     if (s.centermoved !== "") lines.push("centermoved|" + s.centermoved)
     lines.push("icons|" + s.icons)
     lines.push("style|" + s.style)
+    if (s.coloractive !== "") lines.push("coloractive|" + s.coloractive)
+    if (s.colorunfocused !== "") lines.push("colorunfocused|" + s.colorunfocused)
+    if (s.coloroccupied !== "") lines.push("coloroccupied|" + s.coloroccupied)
+    if (s.colorempty !== "") lines.push("colorempty|" + s.colorempty)
     for (var i = 0; i < rows.length; i++)
       lines.push(rows[i].id + "|" + rows[i].key + "|" + rows[i].monitor + "|" + rows[i].label + "|" + rows[i].apps)
     return lines.join("\n") + "\n"
@@ -420,14 +440,22 @@ BarWidget {
 
         readonly property var icons: root.iconsFor(modelData)
         readonly property color accent: root.bar ? root.bar.urgent : Color.urgent
+        readonly property color baseForeground: root.bar ? root.bar.barForeground : Color.foreground
+
         readonly property color tint: focused
-          ? accent
-          : (activeElsewhere ? root.unfocusedActiveColor
-                             : (root.bar ? root.bar.barForeground : Color.foreground))
+          ? (root.colorActive !== "" ? root.colorActive : accent)
+          : activeElsewhere
+            ? (root.colorUnfocused !== "" ? root.colorUnfocused : root.defaultUnfocusedColor)
+            : occupied
+              ? (root.colorOccupied !== "" ? root.colorOccupied : baseForeground)
+              : (root.colorEmpty !== "" ? root.colorEmpty : baseForeground)
 
         implicitWidth: body.implicitWidth + Style.spaceReal(8)
         implicitHeight: root.barSize
-        opacity: occupied || focused || activeElsewhere ? 1 : 0.5
+
+        // An empty workspace is dimmed only while it is taking the theme's
+        // colour — a colour chosen for it is meant to be seen as chosen.
+        opacity: occupied || focused || activeElsewhere || root.colorEmpty !== "" ? 1 : 0.5
 
         Behavior on opacity {
           NumberAnimation { duration: 140; easing.type: Easing.OutCubic }

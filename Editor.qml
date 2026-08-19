@@ -25,8 +25,50 @@ PanelWindow {
   property int iconCount: 3
   property string barStyle: "plain"
   property string lastAppliedPins: ""
+  property string colorActive: ""
+  property string colorUnfocused: ""
+  property string colorOccupied: ""
+  property string colorEmpty: ""
 
   readonly property var barStyles: ["plain", "pill", "underline"]
+
+  readonly property var colorFields: [
+    { key: "coloractive", label: "Active" },
+    { key: "colorunfocused", label: "Active elsewhere" },
+    { key: "coloroccupied", label: "Has windows" },
+    { key: "colorempty", label: "Empty" }
+  ]
+
+  function colorValue(key) {
+    if (key === "coloractive") return win.colorActive
+    if (key === "colorunfocused") return win.colorUnfocused
+    if (key === "coloroccupied") return win.colorOccupied
+    return win.colorEmpty
+  }
+
+  function setColorValue(key, value) {
+    if (key === "coloractive") win.colorActive = value
+    else if (key === "colorunfocused") win.colorUnfocused = value
+    else if (key === "coloroccupied") win.colorOccupied = value
+    else win.colorEmpty = value
+    win.autosave()
+  }
+
+  // Blank is allowed and means "follow the theme"; anything else has to be a
+  // hex colour, or the bar would silently fall back to black.
+  function colorValid(v) {
+    return v === "" || /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v)
+  }
+
+  // What the bar would actually draw, so the swatch shows the theme default
+  // rather than nothing while the field is blank.
+  function colorPreview(key) {
+    var v = win.colorValue(key)
+    if (v !== "" && win.colorValid(v)) return v
+    if (key === "coloractive") return Color.urgent
+    if (key === "colorunfocused") return widget ? widget.defaultUnfocusedColor : "#ff9e3f"
+    return Color.foreground
+  }
 
   // Every change writes itself. The debounce keeps a burst of typing to one
   // file write, which the widget then turns into one hyprctl reload.
@@ -43,6 +85,10 @@ PanelWindow {
   function validate() {
     if (win.renameKey.indexOf("|") !== -1 || win.jumpKey.indexOf("|") !== -1 || win.editorKey.indexOf("|") !== -1)
       return "Hotkeys must not contain \"|\" (it is the field separator)"
+
+    for (var c = 0; c < win.colorFields.length; c++)
+      if (!win.colorValid(win.colorValue(win.colorFields[c].key)))
+        return "Colours must be blank or hex, like #ff9e3f"
 
     for (var j = 0; j < win.rows.length; j++) {
       var r = win.rows[j]
@@ -72,7 +118,11 @@ PanelWindow {
       center: win.centerBar,
       centermoved: win.centerMoved,
       icons: win.iconCount,
-      style: win.barStyle
+      style: win.barStyle,
+      coloractive: win.colorActive,
+      colorunfocused: win.colorUnfocused,
+      coloroccupied: win.colorOccupied,
+      colorempty: win.colorEmpty
     }))
 
     // Only chase windows when the pins actually changed, so an unrelated
@@ -303,6 +353,10 @@ PanelWindow {
     win.centerMoved = widget ? widget.centerMoved : ""
     win.iconCount = widget ? widget.iconCount : 3
     win.barStyle = widget ? widget.barStyle : "plain"
+    win.colorActive = widget ? widget.colorActive : ""
+    win.colorUnfocused = widget ? widget.colorUnfocused : ""
+    win.colorOccupied = widget ? widget.colorOccupied : ""
+    win.colorEmpty = widget ? widget.colorEmpty : ""
     win.lastAppliedPins = JSON.stringify(win.pinMap())
     win.tab = "workspaces"
     win.revision++
@@ -678,6 +732,101 @@ PanelWindow {
           font.pixelSize: Style.font.body - 2
           Layout.fillWidth: true
           wrapMode: Text.WordWrap
+        }
+      }
+
+      // Workspace colours — blank follows the theme
+      ColumnLayout {
+        visible: win.tab === "settings"
+        Layout.fillWidth: true
+        Layout.topMargin: 4
+        spacing: 6
+
+        RowLayout {
+          Layout.fillWidth: true
+          spacing: 10
+
+          Text {
+            text: "Colours"
+            color: win.dim
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body - 1
+            Layout.preferredWidth: 110
+          }
+
+          Text {
+            text: "Hex like #ff9e3f, or blank to follow the theme."
+            color: win.dim
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body - 2
+            Layout.fillWidth: true
+          }
+        }
+
+        Repeater {
+          model: win.colorFields
+
+          RowLayout {
+            required property var modelData
+            Layout.fillWidth: true
+            spacing: 10
+
+            Item { Layout.preferredWidth: 110 }
+
+            Rectangle {
+              Layout.preferredWidth: 20
+              Layout.preferredHeight: 20
+              radius: 4
+              color: win.colorPreview(modelData.key)
+              border.color: win.line
+              border.width: 1
+            }
+
+            Text {
+              text: modelData.label
+              color: win.fg
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body - 1
+              Layout.preferredWidth: 130
+            }
+
+            Rectangle {
+              Layout.preferredWidth: 120
+              Layout.preferredHeight: 24
+              radius: 5
+              color: "transparent"
+              border.color: win.colorValid(hexInput.text) ? (hexInput.activeFocus ? win.fg : win.line) : Color.urgent
+              border.width: 1
+
+              TextInput {
+                id: hexInput
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                verticalAlignment: TextInput.AlignVCenter
+                text: win.colorValue(modelData.key)
+                color: win.fg
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body - 2
+                clip: true
+                selectByMouse: true
+                onTextEdited: win.setColorValue(modelData.key, text)
+                Keys.onEscapePressed: win.close()
+              }
+
+              Text {
+                anchors.fill: hexInput
+                verticalAlignment: Text.AlignVCenter
+                text: "theme"
+                color: Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.3)
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body - 2
+                visible: hexInput.text === ""
+              }
+            }
+
+            Item { Layout.fillWidth: true }
+          }
         }
       }
 
