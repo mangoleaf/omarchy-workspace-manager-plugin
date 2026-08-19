@@ -5,9 +5,9 @@ import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 
-// Rename the active workspace. Names are "base: suffix" — the base is the
-// workspace's fixed identity (its number or letter) and is never editable
-// here; only the suffix is, and clearing it leaves the base alone.
+// Rename the active workspace. The number is its fixed identity and is not
+// editable here — only the name is, and clearing it leaves the workspace
+// showing its number alone.
 PanelWindow {
   id: win
 
@@ -26,24 +26,17 @@ PanelWindow {
   readonly property color dim: Qt.rgba(fg.r, fg.g, fg.b, 0.55)
   readonly property color line: Qt.rgba(fg.r, fg.g, fg.b, 0.18)
 
-  function labelFor(id) {
-    var rows = widget ? widget.rows : []
-    for (var i = 0; i < rows.length; i++) if (rows[i].id === id) return rows[i].label
-    return ""
-  }
-
   function openNow() {
     var active = Hyprland.focusedWorkspace
     if (!active) return
 
+    // Number and name are stored apart, so take them as they are rather than
+    // splitting a composed label — which the spacing setting can render
+    // without a separator anyway.
     win.workspaceId = active.id
-    var label = win.labelFor(active.id)
-    if (label === "") label = String(active.name || active.id)
-
-    // Split on the first ": " — everything before it is the base.
-    var at = label.indexOf(": ")
-    win.base = at === -1 ? label : label.substring(0, at)
-    input.text = at === -1 ? "" : label.substring(at + 2)
+    var row = widget ? widget.rowById(active.id) : null
+    win.base = row ? String(row.prefix === undefined ? "" : row.prefix) : String(active.id)
+    input.text = row ? String(row.label === undefined ? "" : row.label) : ""
 
     var screens = Quickshell.screens
     var focusedName = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : ""
@@ -77,11 +70,10 @@ PanelWindow {
 
 
   function apply() {
-    var suffix = input.text.trim()
-    if (suffix.indexOf("|") !== -1) return  // reserved as the config separator
+    var name = input.text.trim()
+    if (name.indexOf("|") !== -1) return  // reserved as the config separator
 
-    var label = suffix === "" ? win.base : win.base + ": " + suffix
-    if (widget) widget.writeLabel(win.workspaceId, label)
+    if (widget) widget.writeName(win.workspaceId, name)
     close()
   }
 

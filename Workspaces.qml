@@ -207,12 +207,22 @@ BarWidget {
     return lines.concat(root.confFooter).join("\n") + "\n"
   }
 
-  // Used by the rename popup, which changes one label and nothing else.
-  function writeLabel(id, label) {
+  // Used by the rename popup, which changes one workspace's name and nothing
+  // else. Every other field — the number above all — is carried through
+  // verbatim; rebuilding a row without its prefix would blank the numbers of
+  // all 26 workspaces on a single rename.
+  function writeName(id, name) {
     var rows = []
     for (var i = 0; i < root.rows.length; i++) {
       var r = root.rows[i]
-      rows.push({ id: r.id, key: r.key, monitor: r.monitor, label: r.id === id ? label : r.label, apps: r.apps })
+      rows.push({
+        id: r.id,
+        key: r.key,
+        monitor: r.monitor,
+        label: r.id === id ? name : r.label,
+        apps: r.apps,
+        prefix: r.prefix
+      })
     }
     root.saveConf(root.buildConf(rows, root.currentSettings()))
   }
