@@ -38,6 +38,12 @@ BarWidget {
   property string colorEmpty: ""
   readonly property string confPath: Quickshell.env("HOME") + "/.config/hypr/workspaces.conf"
 
+  // Lines we do not understand — comments, blank lines, keys from a future
+  // version — kept verbatim so rewriting the file never destroys them. The
+  // config is documented as hand-editable, so it is not ours alone to own.
+  property var confHeader: []
+  property var confFooter: []
+
   readonly property string screenName: {
     var win = QsWindow.window
     return win && win.screen ? win.screen.name : ""
@@ -49,14 +55,32 @@ BarWidget {
       rename: "", jump: "", editor: "", center: "", centermoved: "", icons: "", style: "",
       coloractive: "", colorunfocused: "", coloroccupied: "", colorempty: ""
     }
+    var header = []
+    var footer = []
+    var seenKnown = false
+
     var lines = (t || "").split("\n")
+    // A file ending in a newline yields a trailing "" that is not a blank
+    // line the user wrote; keeping it would grow one on every save.
+    if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop()
+
     for (var i = 0; i < lines.length; i++) {
       var p = lines[i].split("|")
-      if (p.length >= 4 && /^\d+$/.test(p[0]))
+      if (p.length >= 4 && /^\d+$/.test(p[0])) {
         out.push({ id: parseInt(p[0]), key: p[1], monitor: p[2], label: p[3], apps: p.length >= 5 ? p[4] : "" })
-      else if (p.length >= 2 && settings[p[0]] !== undefined)
+        seenKnown = true
+      } else if (p.length >= 2 && settings[p[0]] !== undefined) {
         settings[p[0]] = p.slice(1).join("|")
+        seenKnown = true
+      } else if (seenKnown) {
+        footer.push(lines[i])
+      } else {
+        header.push(lines[i])
+      }
     }
+
+    root.confHeader = header
+    root.confFooter = footer
     root.rows = out
     root.renameKey = settings.rename
     root.jumpKey = settings.jump
@@ -90,7 +114,7 @@ BarWidget {
   }
 
   function buildConf(rows, s) {
-    var lines = []
+    var lines = root.confHeader.slice()
     if (s.rename !== "") lines.push("rename|" + s.rename)
     if (s.jump !== "") lines.push("jump|" + s.jump)
     if (s.editor !== "") lines.push("editor|" + s.editor)
@@ -104,7 +128,7 @@ BarWidget {
     if (s.colorempty !== "") lines.push("colorempty|" + s.colorempty)
     for (var i = 0; i < rows.length; i++)
       lines.push(rows[i].id + "|" + rows[i].key + "|" + rows[i].monitor + "|" + rows[i].label + "|" + rows[i].apps)
-    return lines.join("\n") + "\n"
+    return lines.concat(root.confFooter).join("\n") + "\n"
   }
 
   // Used by the rename popup, which changes one label and nothing else.
