@@ -171,7 +171,7 @@ PanelWindow {
         kind: "workspace", key: "ws:" + ws.id, depth: 0,
         label: label, meta: "",
         workspaceId: ws.id, monitorName: ws.monitorName,
-        active: ws.active, sc: sc + 50
+        active: ws.active, sc: sc
       })
     }
 
@@ -188,7 +188,14 @@ PanelWindow {
       })
     }
 
-    out.sort(function(a, b) { return b.sc - a.sc })
+    // Windows win a tie. A workspace called Signal and the Signal window
+    // score the same on "signal", and the window is the thing you were
+    // actually looking for — the workspace is reachable by its own hotkey.
+    out.sort(function(a, b) {
+      if (b.sc !== a.sc) return b.sc - a.sc
+      if (a.kind !== b.kind) return a.kind === "window" ? -1 : 1
+      return 0
+    })
     return out
   }
 
