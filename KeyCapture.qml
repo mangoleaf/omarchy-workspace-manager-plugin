@@ -80,37 +80,37 @@ Rectangle {
     cursorShape: Qt.PointingHandCursor
     onClicked: {
       root.capturing = true
-      catcher.forceActiveFocus()
+      root.forceActiveFocus()
     }
   }
 
-  Item {
-    id: catcher
-    anchors.fill: parent
+  // Keys are handled on the component itself rather than a nested Item: a
+  // ListView delegate is its own focus scope, and focus forced onto a child
+  // inside one does not reliably receive key events.
+  focus: false
+  activeFocusOnTab: true
+  onActiveFocusChanged: if (!activeFocus) root.capturing = false
 
-    onActiveFocusChanged: if (!activeFocus) root.capturing = false
+  Keys.onPressed: function(event) {
+    if (!root.capturing) return
+    event.accepted = true
 
-    Keys.onPressed: function(event) {
-      if (!root.capturing) return
-      event.accepted = true
-
-      if (event.key === Qt.Key_Escape) {
-        root.capturing = false
-        return
-      }
-
-      var name = root.keyName(event)
-      if (name === "") return  // modifier or unmapped key: keep waiting
-
-      var mods = []
-      if ((event.modifiers & Qt.MetaModifier) && !root.stripSuper) mods.push("SUPER")
-      if (event.modifiers & Qt.ShiftModifier) mods.push("SHIFT")
-      if (event.modifiers & Qt.ControlModifier) mods.push("CTRL")
-      if (event.modifiers & Qt.AltModifier) mods.push("ALT")
-      mods.push(name)
-
+    if (event.key === Qt.Key_Escape) {
       root.capturing = false
-      root.captured(mods.join(" + "))
+      return
     }
+
+    var name = root.keyName(event)
+    if (name === "") return  // modifier or unmapped key: keep waiting
+
+    var mods = []
+    if ((event.modifiers & Qt.MetaModifier) && !root.stripSuper) mods.push("SUPER")
+    if (event.modifiers & Qt.ShiftModifier) mods.push("SHIFT")
+    if (event.modifiers & Qt.ControlModifier) mods.push("CTRL")
+    if (event.modifiers & Qt.AltModifier) mods.push("ALT")
+    mods.push(name)
+
+    root.capturing = false
+    root.captured(mods.join(" + "))
   }
 }
