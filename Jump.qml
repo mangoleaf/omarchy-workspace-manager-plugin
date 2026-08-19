@@ -154,7 +154,7 @@ PanelWindow {
       var sc = win.scoreText(label, win.query)
       if (sc >= 0) out.push({
         kind: "workspace", key: "ws:" + ws.id, depth: 0,
-        label: label, meta: ws.monitorName,
+        label: label, meta: "",
         workspaceId: ws.id, monitorName: ws.monitorName,
         active: ws.active, sc: sc + 50
       })
@@ -401,6 +401,25 @@ PanelWindow {
                 id: hotkeyText
                 anchors.centerIn: parent
                 text: modelData.kind === "workspace" ? win.hotkeyFor(modelData.workspaceId) : ""
+                color: win.dim
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body - 3
+              }
+            }
+
+            Rectangle {
+              visible: modelData.kind === "workspace" && (modelData.monitorName || "") !== ""
+              Layout.preferredWidth: monitorText.implicitWidth + 14
+              Layout.preferredHeight: 17
+              radius: 8
+              color: Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.10)
+              border.color: win.line
+              border.width: 1
+
+              Text {
+                id: monitorText
+                anchors.centerIn: parent
+                text: modelData.monitorName || ""
                 color: win.dim
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body - 3

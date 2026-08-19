@@ -233,20 +233,23 @@ function flatten(tree, collapsed) {
   var held = collapsed || {}
   var rows = []
 
+  // Monitors are not rows. There is nothing useful about "going to a
+  // monitor", and a header you always skip past is just noise between you
+  // and the workspace you wanted — the monitor is shown on each workspace
+  // instead.
   for (var m = 0; m < tree.length; m++) {
     var monitor = tree[m]
-    rows.push(row(monitor, 0, m === tree.length - 1, true, monitor.children.length > 0))
-    if (held[monitor.key]) continue
+    var lastMonitor = m === tree.length - 1
 
     for (var s = 0; s < monitor.children.length; s++) {
       var workspace = monitor.children[s]
-      var lastWorkspace = s === monitor.children.length - 1
-      rows.push(row(workspace, 1, lastWorkspace, true, workspace.children.length > 0))
+      var lastWorkspace = lastMonitor && s === monitor.children.length - 1
+      rows.push(row(workspace, 0, lastWorkspace, true, workspace.children.length > 0))
       if (held[workspace.key]) continue
 
       for (var w = 0; w < workspace.children.length; w++) {
         var window = workspace.children[w]
-        rows.push(row(window, 2, w === workspace.children.length - 1, lastWorkspace, false))
+        rows.push(row(window, 1, w === workspace.children.length - 1, lastWorkspace, false))
       }
     }
   }
