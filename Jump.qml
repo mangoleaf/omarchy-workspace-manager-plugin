@@ -193,6 +193,15 @@ PanelWindow {
     input.text = ""
     win.query = ""
     win.visible = true
+    win.grabInput()
+  }
+
+  // The surface is mapped asynchronously, so a single focus request can land
+  // before there is anything to focus and leave the arrows dead until the
+  // user clicks. Re-assert it whenever the window becomes visible.
+  onVisibleChanged: if (visible) win.grabInput()
+
+  function grabInput() {
     Qt.callLater(function() {
       if (!win.visible) return
       win.selected = win.pickIndex()
@@ -258,6 +267,9 @@ PanelWindow {
 
         TextInput {
           id: input
+          // Own the window's focus so typing and the arrow keys work the
+          // moment the finder appears, with no click first.
+          focus: true
           anchors.fill: parent
           anchors.leftMargin: 10
           anchors.rightMargin: 10
