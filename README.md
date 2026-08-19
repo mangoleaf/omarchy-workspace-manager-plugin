@@ -320,7 +320,7 @@ Saving in the editor also runs `hyprctl reload` and applies workspace names,
 monitor assignments and pinned-app window moves to the running session.
 
 One further runtime change, which touches no file: at startup the plugin
-defines a Hyprland submap named `mangoleaf-capture`, and switches into it
+defines a Hyprland submap named `omarchy-workspace-manager-capture`, and switches into it
 only while a hotkey box is listening. That is what suspends your bindings
 long enough to capture a combination that is already bound; it is left the
 moment capture ends, and it disappears with the compositor's next reload.

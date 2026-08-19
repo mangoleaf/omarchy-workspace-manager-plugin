@@ -379,7 +379,7 @@ BarWidget {
   // normal bindings while capturing. It cannot be empty — Hyprland will not
   // enter a submap with no bindings — so it holds one deliberately
   // unreachable combination, leaving every real key to fall through to us.
-  readonly property string captureSubmap: "mangoleaf-capture"
+  readonly property string captureSubmap: "omarchy-workspace-manager-capture"
 
   Process {
     id: defineSubmap
