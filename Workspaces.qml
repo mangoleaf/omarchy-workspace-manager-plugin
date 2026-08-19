@@ -119,6 +119,11 @@ BarWidget {
 
   function saveConf(text) {
     confFile.setText(text)
+    // Re-read our own write immediately. The file watcher does not
+    // necessarily fire for a write we made ourselves, and anything that
+    // reopens before it would otherwise see pre-write state — which is how
+    // renaming twice in a row used to show the first name again.
+    root.loadConf(text)
     applyTimer.restart()
   }
 
@@ -349,8 +354,11 @@ BarWidget {
     path: root.confPath
     watchChanges: true
     printErrors: false
+    // reload() is asynchronous — calling text() straight after it returns the
+    // PREVIOUS contents, which would overwrite fresh rows with stale ones.
+    // Let onLoaded do the parsing once the re-read has actually finished.
     onLoaded: root.loadConf(text())
-    onFileChanged: { reload(); root.loadConf(text()) }
+    onFileChanged: reload()
     onLoadFailed: root.loadConf("")
   }
 

@@ -339,6 +339,28 @@ PanelWindow {
     win.autosave()
   }
 
+  // The colour the bar would draw this workspace in, so the editor list reads
+  // the same way at a glance: which one is focused, which is active on the
+  // other monitor, which hold windows, which are empty.
+  function rowTint(row) {
+    var live = null
+    var values = Hyprland.workspaces.values
+    for (var i = 0; i < values.length; i++)
+      if (values[i].id === row.id) { live = values[i]; break }
+
+    var focusedId = Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
+    if (row.id === focusedId)
+      return win.colorActive !== "" ? win.colorActive : Color.urgent
+
+    if (live && live.active === true)
+      return win.colorUnfocused !== "" ? win.colorUnfocused
+                                       : (widget ? widget.defaultUnfocusedColor : "#ff9e3f")
+
+    var occupied = live && live.toplevels ? live.toplevels.values.length > 0 : false
+    if (occupied) return win.colorOccupied !== "" ? win.colorOccupied : win.fg
+    return win.colorEmpty !== "" ? win.colorEmpty : win.dim
+  }
+
   function openNow() {
     var src = widget ? widget.rows : []
     var copy = []
@@ -475,19 +497,32 @@ PanelWindow {
         Repeater {
           model: [{ id: "workspaces", label: "Workspaces" }, { id: "settings", label: "Settings" }]
 
-          Text {
+          ColumnLayout {
             required property var modelData
-            text: modelData.label
-            color: win.tab === modelData.id ? win.fg : win.dim
-            font.family: Style.font.family
-            font.pixelSize: Style.font.body + 3
-            font.bold: win.tab === modelData.id
+            spacing: 3
+
+            Text {
+              id: tabLabel
+              text: parent.modelData.label
+              color: win.tab === parent.modelData.id ? win.fg : win.dim
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body + 3
+              font.bold: win.tab === parent.modelData.id
+            }
+
+            Rectangle {
+              Layout.preferredWidth: tabLabel.implicitWidth
+              Layout.preferredHeight: 2
+              radius: 1
+              color: win.fg
+              visible: win.tab === parent.modelData.id
+            }
 
             MouseArea {
               anchors.fill: parent
               anchors.margins: -4
               cursorShape: Qt.PointingHandCursor
-              onClicked: win.tab = modelData.id
+              onClicked: win.tab = parent.modelData.id
             }
           }
         }
@@ -897,7 +932,7 @@ PanelWindow {
                 anchors.rightMargin: 8
                 verticalAlignment: TextInput.AlignVCenter
                 text: rowRoot.row.label
-                color: win.fg
+                color: win.rowTint(rowRoot.row)
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body
                 clip: true
