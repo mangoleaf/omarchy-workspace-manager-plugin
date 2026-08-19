@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "mangoleaf.workspaces",
+  "name": "Mangoleaf Workspaces",
+  "version": "1.1.0",
+  "author": "Mangoleaf Studios",
+  "description": "Named workspaces split per monitor, with a monitor/hotkey editor",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Workspaces.qml"
+  },
+  "barWidget": {
+    "displayName": "Mangoleaf Workspaces",
+    "description": "Named workspaces split per monitor, with a monitor/hotkey editor",
+    "category": "Compositor",
+    "allowMultiple": false
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.workspaces"
+  }
+}
