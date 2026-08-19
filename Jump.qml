@@ -67,6 +67,18 @@ PanelWindow {
     return out
   }
 
+  function workspaceLabel(ws) {
+    if (widget) {
+      var row = widget.rowById(ws.id)
+      if (row) {
+        var composed = widget.composeLabel(row.prefix, row.label)
+        if (composed !== "") return composed
+      }
+      return widget.compactLabel(String(ws.name || ""))
+    }
+    return String(ws.name || "")
+  }
+
   readonly property var workspacesData: {
     if (!win.visible) return []
     var out = []
@@ -75,7 +87,10 @@ PanelWindow {
       var ws = values[i]
       out.push({
         id: ws.id,
-        name: widget ? widget.compactLabel(String(ws.name || "")) : String(ws.name || ""),
+        // Compose from our own fields rather than Hyprland's live name: the
+        // live name only catches up on the next reload, so a spacing or
+        // number change would not show here until then.
+        name: win.workspaceLabel(ws),
         monitorName: ws.monitor ? String(ws.monitor.name || "") : "",
         active: ws.active === true,
         urgent: ws.urgent === true

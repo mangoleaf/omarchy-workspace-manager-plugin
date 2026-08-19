@@ -47,6 +47,10 @@ BarWidget {
   // without editing every workspace. On by default.
   property bool showNumbers: true
 
+  // What sits between the number and the name. A colon by convention, but
+  // it is only punctuation, so it is the user's to pick.
+  property string delimiter: ":"
+
   // Prefix and name are stored apart; this is the only place they are joined.
   function composeLabel(prefix, name) {
     var p = String(prefix === undefined ? "" : prefix)
@@ -54,7 +58,7 @@ BarWidget {
     if (!root.showNumbers) return n !== "" ? n : p
     if (p === "") return n
     if (n === "") return p
-    return root.compactNames ? p + ":" + n : p + ": " + n
+    return root.compactNames ? p + root.delimiter + n : p + root.delimiter + " " + n
   }
 
   function rowById(id) {
@@ -100,7 +104,7 @@ BarWidget {
   function loadConf(t) {
     var out = []
     var settings = {
-      rename: "", jump: "", editor: "", center: "", centermoved: "", icons: "", style: "", base: "", compact: "", number: "",
+      rename: "", jump: "", editor: "", center: "", centermoved: "", icons: "", style: "", base: "", compact: "", number: "", delim: "",
       coloractive: "", colorunfocused: "", coloroccupied: "", colorempty: ""
     }
     var header = []
@@ -151,6 +155,7 @@ BarWidget {
     root.countFromZero = settings.base === "0"
     root.compactNames = settings.compact === "true"
     root.showNumbers = settings.number !== "false"
+    root.delimiter = settings.delim === "" ? ":" : settings.delim
     root.colorActive = settings.coloractive
     root.colorUnfocused = settings.colorunfocused
     root.colorOccupied = settings.coloroccupied
@@ -171,6 +176,7 @@ BarWidget {
       base: root.countFromZero ? "0" : "1",
       compact: root.compactNames,
       number: root.showNumbers,
+      delim: root.delimiter,
       coloractive: root.colorActive,
       colorunfocused: root.colorUnfocused,
       coloroccupied: root.colorOccupied,
@@ -190,6 +196,7 @@ BarWidget {
     lines.push("base|" + s.base)
     lines.push("compact|" + (s.compact ? "true" : "false"))
     lines.push("number|" + (s.number ? "true" : "false"))
+    lines.push("delim|" + s.delim)
     if (s.coloractive !== "") lines.push("coloractive|" + s.coloractive)
     if (s.colorunfocused !== "") lines.push("colorunfocused|" + s.colorunfocused)
     if (s.coloroccupied !== "") lines.push("coloroccupied|" + s.coloroccupied)

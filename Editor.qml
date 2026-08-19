@@ -27,6 +27,7 @@ PanelWindow {
   property bool countFromZero: false
   property bool compactNames: false
   property bool showNumbers: true
+  property string delimiter: ":"
   property string lastAppliedPins: ""
   property string colorActive: ""
   property string colorUnfocused: ""
@@ -89,6 +90,9 @@ PanelWindow {
     if (win.renameKey.indexOf("|") !== -1 || win.jumpKey.indexOf("|") !== -1 || win.editorKey.indexOf("|") !== -1)
       return "Hotkeys must not contain \"|\" (it is the field separator)"
 
+    if (win.delimiter.indexOf("|") !== -1)
+      return "The delimiter must not contain \"|\" (it is the field separator)"
+
     for (var c = 0; c < win.colorFields.length; c++)
       if (!win.colorValid(win.colorValue(win.colorFields[c].key)))
         return "Colours must be blank or hex, like #ff9e3f"
@@ -126,6 +130,7 @@ PanelWindow {
       base: win.countFromZero ? "0" : "1",
       compact: win.compactNames,
       number: win.showNumbers,
+      delim: win.delimiter,
       coloractive: win.colorActive,
       colorunfocused: win.colorUnfocused,
       coloroccupied: win.colorOccupied,
@@ -387,6 +392,7 @@ PanelWindow {
     win.countFromZero = widget ? widget.countFromZero : false
     win.compactNames = widget ? widget.compactNames : false
     win.showNumbers = widget ? widget.showNumbers : true
+    win.delimiter = widget ? widget.delimiter : ":"
     win.colorActive = widget ? widget.colorActive : ""
     win.colorUnfocused = widget ? widget.colorUnfocused : ""
     win.colorOccupied = widget ? widget.colorOccupied : ""
@@ -906,6 +912,56 @@ PanelWindow {
         }
       }
 
+      // What separates the number from the name
+      RowLayout {
+        visible: win.tab === "settings"
+        Layout.fillWidth: true
+        spacing: 10
+
+        Text {
+          text: "Delimiter"
+          color: win.dim
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 1
+          Layout.preferredWidth: 110
+        }
+
+        Rectangle {
+          Layout.preferredWidth: 60
+          Layout.preferredHeight: 26
+          radius: 5
+          color: "transparent"
+          border.color: delimInput.text.indexOf("|") !== -1 ? Color.urgent
+                      : (delimInput.activeFocus ? win.fg : win.line)
+          border.width: 1
+
+          TextInput {
+            id: delimInput
+            anchors.fill: parent
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            verticalAlignment: TextInput.AlignVCenter
+            text: win.delimiter
+            color: win.fg
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body
+            clip: true
+            selectByMouse: true
+            onTextEdited: { win.delimiter = text; win.autosave() }
+            Keys.onEscapePressed: win.close()
+          }
+        }
+
+        Text {
+          text: "Sits between the number and the name — “0" + win.delimiter + " MLStudios”. Display only; it is not stored in either field."
+          color: win.dim
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 2
+          Layout.fillWidth: true
+          wrapMode: Text.WordWrap
+        }
+      }
+
       // Spacing after the "number:" prefix, on the bar only
       RowLayout {
         visible: win.tab === "settings"
@@ -921,7 +977,7 @@ PanelWindow {
         }
 
         Repeater {
-          model: [{ compact: false, label: "0: Test" }, { compact: true, label: "0:Test" }]
+          model: [{ compact: false, spaced: true }, { compact: true, spaced: false }]
 
           Rectangle {
             required property var modelData
@@ -934,7 +990,7 @@ PanelWindow {
 
             Text {
               anchors.centerIn: parent
-              text: modelData.label
+              text: "0" + win.delimiter + (modelData.spaced ? " " : "") + "Test"
               color: win.fg
               font.family: Style.font.family
               font.pixelSize: Style.font.body - 2
