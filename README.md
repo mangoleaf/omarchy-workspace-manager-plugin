@@ -13,6 +13,9 @@ by hand-editing config.
 
 - Omarchy 4.0 or newer (the Quickshell shell — this is not a Waybar module)
 - Hyprland 0.56+ with the Lua config format
+- `jq`, which Omarchy already installs. Only the finder's cursor warp uses
+  it, and it fails quietly without it: focus still moves, the pointer just
+  stays where it was.
 
 ## Install
 
