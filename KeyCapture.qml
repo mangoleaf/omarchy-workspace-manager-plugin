@@ -44,9 +44,17 @@ Rectangle {
       pad[Qt.Key_Right] = "KP_Right"; pad[Qt.Key_Home] = "KP_Home"; pad[Qt.Key_Up] = "KP_Up"
       pad[Qt.Key_PageUp] = "KP_Prior"; pad[Qt.Key_Minus] = "KP_Subtract"; pad[Qt.Key_Plus] = "KP_Add"
       pad[Qt.Key_Enter] = "KP_Enter"; pad[Qt.Key_Slash] = "KP_Divide"; pad[Qt.Key_Asterisk] = "KP_Multiply"
-      pad[Qt.Key_Delete] = "KP_Delete"; pad[Qt.Key_Period] = "KP_Decimal"
+      pad[Qt.Key_Delete] = "KP_Delete"; pad[Qt.Key_Period] = "KP_Delete"
       if (pad[k]) return pad[k]
-      if (k >= Qt.Key_0 && k <= Qt.Key_9) return "KP_" + (k - Qt.Key_0)
+
+      // With numlock on, a numpad digit arrives as Key_0..Key_9 and the
+      // obvious name for it is KP_3. Hyprland will accept that name and then
+      // never match it: it resolves a binding against the keymap's base
+      // level, where that key is KP_Next. So a digit is reported under the
+      // name the key carries with numlock off, which is what binds.
+      var numlockOff = ["KP_Insert", "KP_End", "KP_Down", "KP_Next", "KP_Left",
+                        "KP_Begin", "KP_Right", "KP_Home", "KP_Up", "KP_Prior"]
+      if (k >= Qt.Key_0 && k <= Qt.Key_9) return numlockOff[k - Qt.Key_0]
     }
 
     if (k >= Qt.Key_F1 && k <= Qt.Key_F35) return "F" + (k - Qt.Key_F1 + 1)
