@@ -192,6 +192,14 @@ title:YouTube
 A title pin matches anywhere in the title, so `title:YouTube` finds
 *YouTube — Mozilla Firefox*. A class pin still has to match the whole class.
 
+Hyprland chooses a window's workspace once, as the window maps, and never
+revisits it. Browsers map their windows titled just *Mozilla Firefox* and only
+take the page's title once it loads, so a title rule is tested against a title
+the window does not have yet. The plugin therefore watches windows appear and
+rename themselves and places them itself. A window is placed once and then
+left alone — moving it somewhere else afterwards is a decision, not something
+to undo the next time its title changes.
+
 The **+** picker offers both: every installed app by class, and every open
 window by title, listed as `title:…`. Anything it does not know about can be
 typed into its search box and taken as written.

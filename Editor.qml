@@ -622,39 +622,13 @@ PanelWindow {
     Qt.callLater(function() { if (win.visible) card.forceActiveFocus() })
   }
 
-  function pinMap() {
-    var out = {}
-    for (var i = 0; i < win.rows.length; i++) {
-      var apps = win.rows[i].apps === "" ? [] : win.rows[i].apps.split(",")
-      for (var a = 0; a < apps.length; a++) out[apps[a]] = win.rows[i].id
-    }
-    return out
-  }
-
   // Saving enforces every pin on the windows that are already open, so a tag
   // dragged to another workspace takes its running windows along and the
-  // pins never disagree with what is on screen.
+  // pins never disagree with what is on screen. The widget owns this, since
+  // it also has to place windows that appear while the editor is shut.
   function applyPinMoves() {
     Hyprland.refreshToplevels()
-    var now = win.pinMap()
-    var values = Hyprland.toplevels.values
-
-    for (var app in now) {
-      var re = null
-      try { re = new RegExp(app) } catch (e) { re = null }
-
-      for (var i = 0; i < values.length; i++) {
-        var t = values[i]
-        var ipc = t.lastIpcObject || ({})
-        var cls = String(ipc["class"] || ipc.initialClass || "")
-        if (re ? !re.test(cls) : cls !== app) continue
-        if (t.workspace && t.workspace.id === now[app]) continue
-
-        var addr = String(t.address || "")
-        if (addr.indexOf("0x") !== 0) addr = "0x" + addr
-        Hyprland.dispatch('hl.dsp.window.move({ window = "address:' + addr + '", workspace = "' + now[app] + '", follow = false })')
-      }
-    }
+    if (win.widget) win.widget.enforcePins(true)
   }
 
   function close() {

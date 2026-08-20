@@ -751,6 +751,92 @@ BarWidget {
     }
   }
 
+  // Hyprland decides a window's workspace once, at the moment it maps, and
+  // never revisits it. Firefox maps its windows titled "Mozilla Firefox" and
+  // only becomes "YouTube — Mozilla Firefox" once the page loads, so a title
+  // rule is tested against a title the window does not have yet and never
+  // fires — in exactly the case title pins exist for. So watch windows
+  // appear and rename themselves, and place them here instead.
+  property var placed: ({})
+
+  function pinMap() {
+    var out = {}
+    for (var i = 0; i < root.rows.length; i++) {
+      var apps = root.rows[i].apps === "" ? [] : root.rows[i].apps.split(",")
+      for (var a = 0; a < apps.length; a++) {
+        var pattern = apps[a].replace(/^\s+|\s+$/g, "")
+        if (pattern !== "") out[pattern] = root.rows[i].id
+      }
+    }
+    return out
+  }
+
+  // Matched the same way the shipped Lua matches: a class must be the whole
+  // string, a title need only contain the pattern, both case-insensitively.
+  function pinMatches(pattern, cls, title) {
+    var wanted = pattern.match(/^title:\s*(.+)$/)
+    var subject = wanted ? title : cls
+    if (subject === "") return false
+    var re = null
+    try {
+      re = wanted ? new RegExp(wanted[1], "i")
+                  : new RegExp("^(?:" + pattern + ")$", "i")
+    } catch (e) { return false }
+    return re.test(subject)
+  }
+
+  // A window is placed once and then left alone: dragging it somewhere else
+  // afterwards is a decision, not something to undo on its next title change.
+  // Saving the editor passes force, since moving a tag is an instruction to
+  // gather up what is already open.
+  function enforcePins(force) {
+    var map = root.pinMap()
+    var values = Hyprland.toplevels.values
+    var next = {}
+
+    for (var i = 0; i < values.length; i++) {
+      var t = values[i]
+      var ipc = t.lastIpcObject || ({})
+      var cls = String(ipc["class"] || ipc.initialClass || "")
+      var title = String(t.title || ipc.title || "")
+      var addr = String(t.address || "")
+      if (addr === "") continue
+      if (addr.indexOf("0x") !== 0) addr = "0x" + addr
+      if (root.placed[addr]) next[addr] = true
+
+      for (var pattern in map) {
+        if (!root.pinMatches(pattern, cls, title)) continue
+        var target = map[pattern]
+        if (t.workspace && t.workspace.id === target) { next[addr] = true; break }
+        if (!force && root.placed[addr]) break
+        next[addr] = true
+        Hyprland.dispatch('hl.dsp.window.move({ window = "address:' + addr
+          + '", workspace = "' + target + '", follow = false })')
+        break
+      }
+    }
+
+    root.placed = next
+  }
+
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      var name = String(event.name)
+      if (name === "openwindow" || name === "windowtitle"
+          || name === "windowtitlev2" || name === "closewindow")
+        pinTimer.restart()
+    }
+  }
+
+  Timer {
+    id: pinTimer
+    // Titles arrive in a burst while a page loads; wait for them to settle
+    // rather than chasing every intermediate one.
+    interval: 250
+    onTriggered: root.enforcePins(false)
+  }
+
   Loader {
     id: editorLoader
     active: false
