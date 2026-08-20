@@ -1759,15 +1759,25 @@ PanelWindow {
                         font.pixelSize: Style.font.body - 3
                       }
 
+                      // Long class names and window titles are shortened to
+                      // fit the pill, so hovering one says what it actually
+                      // is rather than leaving the user to guess at a tail.
+                      readonly property bool truncated: chipText.text !== chipRect.appName
+
                       MouseArea {
                         id: chipDrag
                         anchors.fill: parent
                         anchors.rightMargin: 16
                         drag.target: chipRect
                         preventStealing: true
+                        hoverEnabled: true
                         cursorShape: Qt.OpenHandCursor
+                        onEntered: if (chipRect.truncated)
+                          win.showTextTip(true, chipRect, chipRect.appName)
+                        onExited: win.showTextTip(false, chipRect, "")
                         onPressed: rowRoot.z = 10
                         onReleased: {
+                          win.showTextTip(false, chipRect, "")
                           rowRoot.z = 0
                           if (chipRect.Drag.target !== null) chipRect.Drag.drop()
                           chipRect.x = 0
