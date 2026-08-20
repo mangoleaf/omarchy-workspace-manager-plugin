@@ -374,6 +374,28 @@ PanelWindow {
   readonly property color dim: Qt.rgba(fg.r, fg.g, fg.b, 0.55)
   readonly property color line: Qt.rgba(fg.r, fg.g, fg.b, 0.18)
 
+  // Destructive actions are red regardless of theme: on a green theme the
+  // accent reads as approval, which is the wrong cue for deleting something.
+  readonly property color dangerColor: "#ff5f56"
+
+  // Which row is awaiting confirmation (-1 = none)
+  property int deleteCandidate: -1
+
+  function deletable(id) {
+    return win.rows.length > 1 && win.windowCount(id) === 0
+  }
+
+  function askDelete(index) {
+    if (!win.deletable(win.rows[index].id)) return
+    win.deleteCandidate = index
+  }
+
+  function confirmDelete() {
+    var index = win.deleteCandidate
+    win.deleteCandidate = -1
+    if (index >= 0) win.removeWorkspace(index)
+  }
+
   // "" is a real choice: an unpinned workspace opens wherever focus is.
   function monitorNames() {
     var names = []
@@ -695,7 +717,10 @@ PanelWindow {
     // and the app picker's search field handles its own, so this only fires
     // when neither is holding focus.
     focus: true
-    Keys.onEscapePressed: win.close()
+    Keys.onEscapePressed: {
+      if (win.deleteCandidate >= 0) win.deleteCandidate = -1
+      else win.close()
+    }
 
     ColumnLayout {
       id: content
@@ -1735,36 +1760,45 @@ PanelWindow {
               Layout.preferredHeight: 26
               radius: 5
               color: "transparent"
-              border.color: win.line
+              border.color: addHoverArea.containsMouse ? Color.urgent : win.line
               border.width: 1
 
               Text {
                 anchors.centerIn: parent
                 text: "+"
-                color: win.fg
+                color: addHoverArea.containsMouse ? Color.urgent : win.fg
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body + 2
               }
 
               MouseArea {
+                id: addHoverArea
                 anchors.fill: parent
+                hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: win.openAppsPicker(rowRoot.index)
               }
             }
 
             Rectangle {
+              // Deleting is refused while the workspace still holds windows,
+              // so the button says so by being inert rather than by waiting
+              // to be clicked and then complaining.
+              readonly property bool armed: win.deletable(rowRoot.row.id)
+
               Layout.preferredWidth: 26
               Layout.preferredHeight: 26
               radius: 5
               color: "transparent"
-              border.color: removeHover.containsMouse ? Color.urgent : win.line
+              border.color: !armed ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.08)
+                          : (removeHover.containsMouse ? win.dangerColor : win.line)
               border.width: 1
+              opacity: armed ? 1 : 0.4
 
               Text {
                 anchors.centerIn: parent
                 text: "🗑"
-                color: removeHover.containsMouse ? Color.urgent : win.dim
+                color: parent.armed && removeHover.containsMouse ? win.dangerColor : win.dim
                 font.pixelSize: Style.font.body - 2
               }
 
@@ -1772,8 +1806,12 @@ PanelWindow {
                 id: removeHover
                 anchors.fill: parent
                 hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: win.removeWorkspace(rowRoot.index)
+                enabled: parent.armed
+                cursorShape: parent.armed ? Qt.PointingHandCursor : Qt.ArrowCursor
+                onClicked: win.askDelete(rowRoot.index)
+                onEntered: if (!parent.armed) win.showTextTip(true, parent,
+                  "Move its windows elsewhere before deleting")
+                onExited: win.showTextTip(false, parent, "")
               }
             }
           }
@@ -1891,6 +1929,82 @@ PanelWindow {
         color: "#ffb020"
         font.family: Style.font.family
         font.pixelSize: Style.font.body - 2
+      }
+    }
+  }
+
+  // Deleting a workspace cannot be undone — the row, its hotkey and its pins
+  // all go — so it is asked for rather than assumed.
+  Item {
+    anchors.fill: parent
+    visible: win.deleteCandidate >= 0
+    z: 30
+
+    MouseArea { anchors.fill: parent; onClicked: win.deleteCandidate = -1 }
+
+    Rectangle {
+      anchors.centerIn: parent
+      width: 420
+      height: confirmCol.implicitHeight + 28
+      radius: 10
+      color: Color.background
+      border.color: win.dangerColor
+      border.width: 1
+
+      MouseArea { anchors.fill: parent }
+
+      ColumnLayout {
+        id: confirmCol
+        anchors.fill: parent
+        anchors.margins: 14
+        spacing: 10
+
+        Text {
+          text: "Delete this workspace?"
+          color: win.fg
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body + 1
+          font.bold: true
+        }
+
+        Text {
+          text: win.deleteCandidate >= 0 && win.deleteCandidate < win.rows.length
+            ? "“" + (win.rows[win.deleteCandidate].label !== ""
+                     ? win.rows[win.deleteCandidate].label
+                     : win.rows[win.deleteCandidate].prefix)
+              + "” loses its number, its hotkey and any pinned apps. This cannot be undone."
+            : ""
+          color: win.dim
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 1
+          Layout.fillWidth: true
+          wrapMode: Text.WordWrap
+        }
+
+        RowLayout {
+          Layout.alignment: Qt.AlignRight
+          spacing: 10
+
+          Rectangle {
+            width: 90; height: 30; radius: 6
+            color: "transparent"
+            border.color: win.line
+            border.width: 1
+            Text { anchors.centerIn: parent; text: "Cancel"; color: win.dim
+                   font.family: Style.font.family; font.pixelSize: Style.font.body }
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        onClicked: win.deleteCandidate = -1 }
+          }
+
+          Rectangle {
+            width: 90; height: 30; radius: 6
+            color: win.dangerColor
+            Text { anchors.centerIn: parent; text: "Delete"; color: "#1a1a1a"
+                   font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        onClicked: win.confirmDelete() }
+          }
+        }
       }
     }
   }
