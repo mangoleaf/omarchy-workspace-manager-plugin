@@ -1706,12 +1706,28 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
 
+                // A pin shows its whole name while there is room for it.
+                // Only once the pins together would overrun the row do they
+                // start sharing the space and eliding.
+                readonly property real needed: {
+                  var t = 0
+                  for (var i = 0; i < children.length; i++) {
+                    var w = children[i].implicitWidth
+                    if (w > 0) t += w + spacing
+                  }
+                  return t
+                }
+                readonly property real chipCap: needed > width
+                  ? Math.floor((width - spacing) / 2)
+                  : width
+
                 Repeater {
                   model: rowRoot.appList
 
                   Item {
                     id: chipSlot
                     required property string modelData
+                    implicitWidth: chipRect.implicitWidth
                     width: chipRect.width
                     height: 20
 
@@ -1720,14 +1736,15 @@ PanelWindow {
                       readonly property string appName: chipSlot.modelData
                       readonly property int fromRow: rowRoot.index
 
-                      width: chipText.implicitWidth + 30
+                      implicitWidth: chipText.implicitWidth + 30
+                      width: Math.min(implicitWidth, appsFlow.chipCap)
                       height: 20
                       // Outlined rather than filled, matching the tooltips —
                       // a row of filled pills reads as one grey mass, where
                       // outlines keep each pin separate at a glance.
                       radius: 4
                       color: Color.background
-                      border.color: win.fg
+                      border.color: Color.accent
                       border.width: 1
 
                       Drag.active: chipDrag.drag.active
@@ -1740,14 +1757,15 @@ PanelWindow {
                         id: chipText
                         anchors.left: parent.left
                         anchors.leftMargin: 8
+                        anchors.right: parent.right
+                        anchors.rightMargin: 22
                         anchors.verticalCenter: parent.verticalCenter
                         // Class names are long and their tail is the
-                        // distinctive part, so keep that rather than the
+                        // distinctive part, so drop the head rather than the
                         // reverse-DNS prefix everything shares.
-                        text: chipRect.appName.length > 16
-                          ? "…" + chipRect.appName.slice(-15)
-                          : chipRect.appName
-                        color: win.fg
+                        elide: Text.ElideLeft
+                        text: chipRect.appName
+                        color: Color.accent
                         font.family: Style.font.family
                         font.pixelSize: Style.font.body - 2
                       }
@@ -1758,14 +1776,14 @@ PanelWindow {
                         anchors.rightMargin: 6
                         anchors.verticalCenter: parent.verticalCenter
                         text: "✕"
-                        color: win.dim
+                        color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.6)
                         font.pixelSize: Style.font.body - 3
                       }
 
                       // Long class names and window titles are shortened to
                       // fit the pill, so hovering one says what it actually
                       // is rather than leaving the user to guess at a tail.
-                      readonly property bool truncated: chipText.text !== chipRect.appName
+                      readonly property bool truncated: chipText.implicitWidth > chipText.width
 
                       MouseArea {
                         id: chipDrag
