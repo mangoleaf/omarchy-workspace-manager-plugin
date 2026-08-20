@@ -2,6 +2,16 @@
 -- Reads ~/.config/hypr/workspaces.conf, which the plugin's editor writes.
 -- Loaded from your bindings.lua with a single dofile line; see the README.
 
+-- Suspends the normal bindings while the editor is capturing a hotkey, so a
+-- combination that is already bound can be re-recorded instead of firing.
+-- Defined here rather than at runtime because a submap registered through
+-- hyprctl does not survive the next reload, and this plugin reloads on save.
+-- Hyprland will not enter a submap with no bindings, so it holds one
+-- deliberately unreachable combination and every real key falls through.
+hl.define_submap("omarchy-workspace-manager-capture", function()
+  hl.bind("CTRL + ALT + SHIFT + SUPER + XF86Launch9", hl.dsp.submap("reset"))
+end)
+
 -- Defaults, used when workspaces.conf does not name a hotkey for an action.
 local hotkeys = {
   rename = "SUPER + SHIFT + F2",

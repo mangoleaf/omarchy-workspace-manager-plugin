@@ -542,19 +542,10 @@ BarWidget {
 
   // Hyprland matches its own keybinds before a client ever sees the keys, so
   // arming a capture box is not enough: pressing an already-bound combination
-  // fires that binding instead of being captured. A submap suspends the
-  // normal bindings while capturing. It cannot be empty — Hyprland will not
-  // enter a submap with no bindings — so it holds one deliberately
-  // unreachable combination, leaving every real key to fall through to us.
+  // fires that binding instead of being captured. The submap that suspends
+  // them is defined in hypr/workspace-binds.lua — a submap registered at
+  // runtime does not survive a reload, and this plugin reloads on save.
   readonly property string captureSubmap: "omarchy-workspace-manager-capture"
-
-  Process {
-    id: defineSubmap
-    running: true
-    command: ["hyprctl", "eval",
-      'hl.define_submap("' + root.captureSubmap + '", function() '
-      + 'hl.bind("CTRL + ALT + SHIFT + SUPER + XF86Launch9", hl.dsp.submap("reset")) end)']
-  }
 
   function beginKeyCapture() {
     Hyprland.dispatch('hl.dsp.submap("' + root.captureSubmap + '")')
