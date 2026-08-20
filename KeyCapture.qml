@@ -26,6 +26,10 @@ Rectangle {
   // at the foot of the editor, which is a long way from the field you just
   // used, so the field says it too.
   property bool warn: false
+
+  // Fixed, not themed: a warning has to read as a warning on a theme whose
+  // accent is green.
+  readonly property color warnColor: "#ffb020"
   property bool stripSuper: false
   property bool capturing: false
   property color fg: Color.foreground
@@ -36,7 +40,7 @@ Rectangle {
 
   radius: 5
   color: capturing ? Qt.rgba(fg.r, fg.g, fg.b, 0.08) : "transparent"
-  border.color: capturing ? fg : (warn ? Color.urgent : lineColor)
+  border.color: capturing ? fg : (warn ? root.warnColor : lineColor)
   border.width: 1
 
   function keyName(event) {
@@ -87,12 +91,31 @@ Rectangle {
     anchors.rightMargin: 8
     verticalAlignment: Text.AlignVCenter
     text: root.capturing ? "press keys… (Esc cancels)"
-        : (root.value === "" ? "click to set"
-          : (root.warn ? "\u26a0 " : "") + root.displayPrefix + root.value)
+        : (root.value === "" ? "click to set" : root.displayPrefix + root.value)
     color: root.capturing || root.value === "" ? root.dimColor : root.fg
     font.family: Style.font.family
     font.pixelSize: Style.font.body - 1
     elide: Text.ElideRight
+  }
+
+  Rectangle {
+    visible: root.warn && !root.capturing
+    anchors.right: parent.right
+    anchors.rightMargin: 4
+    anchors.verticalCenter: parent.verticalCenter
+    width: 15
+    height: 15
+    radius: 3
+    color: root.warnColor
+
+    Text {
+      anchors.centerIn: parent
+      text: "!"
+      color: "#1a1a1a"
+      font.family: Style.font.family
+      font.pixelSize: Style.font.body - 2
+      font.bold: true
+    }
   }
 
   MouseArea {

@@ -92,6 +92,7 @@ PanelWindow {
   // a key away from something else is worse than saying so.
   property string conflictNote: ""
   property string conflictCombo: ""
+  property string conflictWith: ""
 
   // ponytail: six seconds is long enough to read a sentence and short
   // enough that it is gone before it stops being about what you just did.
@@ -123,13 +124,34 @@ PanelWindow {
     }
   }
 
+  // A warning describes a state, not an event: if the combination it was
+  // about is no longer held by any field, or no longer collides with
+  // anything, it has stopped being true and goes away by itself.
+  function revalidateConflict() {
+    if (win.conflictCombo === "") return
+
+    var held = win.renameKey === win.conflictCombo
+            || win.jumpKey === win.conflictCombo
+            || win.editorKey === win.conflictCombo
+    for (var i = 0; i < win.rows.length && !held; i++)
+      if (win.rows[i].key !== "" && "SUPER + " + win.rows[i].key === win.conflictCombo) held = true
+
+    var stillCollides = widget && widget.bindingConflict(win.conflictCombo) !== ""
+    if (!held || !stillCollides) {
+      win.conflictCombo = ""
+      win.conflictWith = ""
+      win.conflictNote = ""
+    }
+  }
+
   function noteConflict(keys) {
     if (!widget) return
     var hit = widget.bindingConflict(keys)
     win.noteExpires = false
     win.conflictCombo = hit === "" ? "" : keys
+    win.conflictWith = hit
     win.conflictNote = hit === "" ? ""
-      : "\u26a0  \u201c" + keys + "\u201d is already bound to " + hit + " — this takes it over."
+      : "!  \u201c" + keys + "\u201d is already bound to " + hit + " — this takes it over."
   }
 
   function validate() {
@@ -479,6 +501,9 @@ PanelWindow {
     win.colorEmpty = widget ? widget.colorEmpty : ""
     win.lastAppliedPins = JSON.stringify(win.pinMap())
     win.tab = "workspaces"
+    win.conflictCombo = ""
+    win.conflictWith = ""
+    win.conflictNote = ""
     if (widget) widget.refreshBinds()
 
     // Nothing configured yet: adopt what Hyprland already has rather than
@@ -593,6 +618,7 @@ PanelWindow {
     }
     win.rows = copy
     win.revision++
+    win.revalidateConflict()
     win.autosave()
   }
 
@@ -615,6 +641,7 @@ PanelWindow {
 
     win.rows[index].key = keys
     win.touch()
+    win.revalidateConflict()
   }
 
 
@@ -863,8 +890,11 @@ PanelWindow {
             }
 
             Text {
-              text: modelData.hint
-              color: win.dim
+              readonly property bool warned: win.conflictCombo !== ""
+                && win.conflictCombo === (modelData.key === "rename" ? win.renameKey
+                                        : modelData.key === "jump" ? win.jumpKey : win.editorKey)
+              text: warned ? "takes it from " + win.conflictWith : modelData.hint
+              color: warned ? "#ffb020" : win.dim
               font.family: Style.font.family
               font.pixelSize: Style.font.body - 2
               Layout.fillWidth: true
@@ -1544,6 +1574,17 @@ PanelWindow {
               onCaptured: function(keys) { win.setKey(rowRoot.index, keys); win.noteConflict("SUPER + " + keys) }
             }
 
+            Text {
+              visible: win.conflictCombo !== "" && rowRoot.row.key !== ""
+                       && win.conflictCombo === "SUPER + " + rowRoot.row.key
+              text: "takes it from " + win.conflictWith
+              color: "#ffb020"
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body - 2
+              elide: Text.ElideRight
+              Layout.maximumWidth: 190
+            }
+
             // Pinned apps as tags: ✕ removes, drag a tag onto another row to
             // move the pin there.
             Item {
@@ -1755,7 +1796,7 @@ PanelWindow {
         Text {
           text: win.conflictNote
           visible: win.errorText === "" && win.conflictNote !== ""
-          color: Color.urgent
+          color: "#ffb020"
           font.bold: true
           font.family: Style.font.family
           font.pixelSize: Style.font.body - 1

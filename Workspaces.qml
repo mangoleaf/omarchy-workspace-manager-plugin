@@ -398,7 +398,12 @@ BarWidget {
       for (var i = 0; i < all.length; i++) {
         var b = all[i]
         if (!b.key || b.key === "") continue
-        map[b.modmask + "|" + String(b.key).toUpperCase()] = String(b.description || "a binding")
+        // A combination can carry several bindings — ours and whatever it is
+        // taking over. Keep them all; a single slot would let ours shadow the
+        // one worth warning about.
+        var slot = b.modmask + "|" + String(b.key).toUpperCase()
+        if (!map[slot]) map[slot] = []
+        map[slot].push(String(b.description || "a binding"))
       }
     } catch (e) {}
     root.existingBinds = map
@@ -433,12 +438,24 @@ BarWidget {
 
   // What a combination is already bound to, or "" if it is free. Our own
   // bindings do not count: rebinding onto one of them is not a collision.
+  // Bindings this plugin generates, matched exactly rather than by looking
+  // for the word "workspace" anywhere in a description.
+  function isOwnBinding(desc) {
+    return desc.indexOf("Switch to workspace") === 0
+        || desc.indexOf("Move to workspace") === 0
+        || desc.indexOf("Move silently to workspace") === 0
+        || desc === "Rename workspace"
+        || desc === "Jump to workspace"
+        || desc === "Workspace editor"
+  }
+
   function bindingConflict(keys) {
     if (keys === "") return ""
-    var hit = root.existingBinds[root.modmaskFor(keys) + "|" + root.bareKeyOf(keys)]
-    if (!hit) return ""
-    if (hit.indexOf("workspace") !== -1 || hit === "Workspace editor") return ""
-    return hit
+    var hits = root.existingBinds[root.modmaskFor(keys) + "|" + root.bareKeyOf(keys)]
+    if (!hits) return ""
+    for (var i = 0; i < hits.length; i++)
+      if (!root.isOwnBinding(hits[i])) return hits[i]
+    return ""
   }
 
   // Everything Hyprland already has, as editor rows. Used on a fresh install
