@@ -16,6 +16,7 @@ Rectangle {
   // keybinds — otherwise an already-bound combination fires instead of
   // being captured.
   property var widget: null
+  readonly property int rSmall: widget ? widget.roundSmall : 5
 
   // Shown in front of the value but never stored. Workspace keys are held
   // SUPER-relative in the config, and reading "KP_Insert" gives no clue
@@ -43,7 +44,7 @@ Rectangle {
 
   signal captured(string keys)
 
-  radius: 5
+  radius: rSmall
   color: capturing ? Qt.rgba(fg.r, fg.g, fg.b, 0.08) : "transparent"
   border.color: capturing ? fg : (warn ? root.warnColor : lineColor)
   border.width: 1
@@ -110,7 +111,7 @@ Rectangle {
     anchors.verticalCenter: parent.verticalCenter
     width: 15
     height: 15
-    radius: 3
+    radius: rSmall
     color: root.warnColor
 
     Text {

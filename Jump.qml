@@ -25,6 +25,9 @@ PanelWindow {
   WlrLayershell.layer: WlrLayer.Overlay
   WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
+  readonly property int rLarge: widget ? widget.roundLarge : 10
+  readonly property int rSmall: widget ? widget.roundSmall : 5
+
   readonly property color fg: Color.foreground
   readonly property color dim: Qt.rgba(fg.r, fg.g, fg.b, 0.55)
   readonly property color line: Qt.rgba(fg.r, fg.g, fg.b, 0.18)
@@ -322,7 +325,7 @@ PanelWindow {
     y: Math.round(parent.height * 0.14)
     width: 640
     height: content.implicitHeight + 28
-    radius: 10
+    radius: rLarge
     color: Color.background
     border.color: win.line
     border.width: 1
@@ -338,7 +341,7 @@ PanelWindow {
       Rectangle {
         Layout.fillWidth: true
         Layout.preferredHeight: 32
-        radius: 6
+        radius: rSmall
         color: "transparent"
         border.color: win.line
         border.width: 1
@@ -394,7 +397,7 @@ PanelWindow {
 
           width: list.width
           height: 28
-          radius: 5
+          radius: rSmall
           color: chosen ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.10) : "transparent"
 
           // A bar on the selected row rather than a brighter fill: the list is

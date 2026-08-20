@@ -405,6 +405,9 @@ PanelWindow {
   WlrLayershell.layer: WlrLayer.Overlay
   WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
+  readonly property int rLarge: widget ? widget.roundLarge : 10
+  readonly property int rSmall: widget ? widget.roundSmall : 5
+
   readonly property color fg: Color.foreground
   readonly property color dim: Qt.rgba(fg.r, fg.g, fg.b, 0.55)
   readonly property color line: Qt.rgba(fg.r, fg.g, fg.b, 0.18)
@@ -814,7 +817,7 @@ PanelWindow {
 
     implicitWidth: 18
     implicitHeight: 18
-    radius: 4
+    radius: rSmall
     color: tick.checked ? win.fg : "transparent"
     border.color: tick.checked ? win.fg : win.line
     border.width: 1
@@ -842,7 +845,7 @@ PanelWindow {
 
     Layout.preferredWidth: 80
     Layout.preferredHeight: 26
-    radius: 5
+    radius: rSmall
     color: choice.active ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.15) : "transparent"
     border.color: choice.active ? win.fg : win.faint
     border.width: 1
@@ -870,7 +873,7 @@ PanelWindow {
 
     Layout.preferredWidth: 26
     Layout.preferredHeight: 26
-    radius: 5
+    radius: rSmall
     color: "transparent"
     border.color: win.faint
     border.width: 1
@@ -901,7 +904,7 @@ PanelWindow {
     anchors.centerIn: parent
     width: 1180
     height: Math.min(win.height - 120, content.implicitHeight + 40)
-    radius: 10
+    radius: rLarge
     color: Color.background
     border.color: win.line
     border.width: 1
@@ -967,7 +970,7 @@ PanelWindow {
           visible: win.tab === "workspaces"
           Layout.preferredWidth: 20
           Layout.preferredHeight: 20
-          radius: 10
+          radius: rLarge
           color: win.showHelp ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.15) : "transparent"
           border.color: win.showHelp ? win.fg : win.line
           border.width: 1
@@ -996,7 +999,7 @@ PanelWindow {
         visible: win.tab === "workspaces" && widget && !widget.hyprConfigInstalled
         Layout.fillWidth: true
         Layout.preferredHeight: setupRow.implicitHeight + 20
-        radius: 6
+        radius: rSmall
         color: Qt.rgba(Color.urgent.r, Color.urgent.g, Color.urgent.b, 0.10)
         border.color: Color.urgent
         border.width: 1
@@ -1033,7 +1036,7 @@ PanelWindow {
             visible: win.missingCount() > 0
             Layout.preferredWidth: 150
             Layout.preferredHeight: 30
-            radius: 6
+            radius: rSmall
             color: "transparent"
             border.color: win.fg
             border.width: 1
@@ -1056,7 +1059,7 @@ PanelWindow {
           Rectangle {
             Layout.preferredWidth: 150
             Layout.preferredHeight: 30
-            radius: 6
+            radius: rSmall
             color: win.fg
 
             Text {
@@ -1298,7 +1301,7 @@ PanelWindow {
           Rectangle {
             Layout.preferredWidth: 60
             Layout.preferredHeight: 26
-            radius: 5
+            radius: rSmall
             color: "transparent"
             border.color: delimInput.text.indexOf("|") !== -1 ? Color.urgent
                         : delimInput.activeFocus ? win.fg
@@ -1364,7 +1367,7 @@ PanelWindow {
             Rectangle {
               Layout.preferredWidth: 24
               Layout.preferredHeight: 24
-              radius: 4
+              radius: rSmall
               color: win.colorPreview(modelData.key)
               border.color: win.line
               border.width: 1
@@ -1374,7 +1377,7 @@ PanelWindow {
               Layout.leftMargin: 4
               Layout.preferredWidth: 120
               Layout.preferredHeight: 24
-              radius: 5
+              radius: rSmall
               color: "transparent"
               border.color: !win.colorValid(hexInput.text) ? Color.urgent
                           : hexInput.activeFocus ? win.fg
@@ -1483,7 +1486,7 @@ PanelWindow {
           required property int index
           width: list.width
           height: Math.max(30, appsFlow.implicitHeight + 8)
-          radius: 5
+          radius: rSmall
           color: rowDrop.containsDrag ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.10) : "transparent"
 
           readonly property var row: modelData
@@ -1514,7 +1517,7 @@ PanelWindow {
             Rectangle {
               Layout.preferredWidth: 54
               Layout.preferredHeight: 26
-              radius: 5
+              radius: rSmall
               color: "transparent"
               // The number and the name are typed, but nothing said so while
               // they sat bare next to the bordered monitor and hotkey fields.
@@ -1547,7 +1550,7 @@ PanelWindow {
             Rectangle {
               Layout.preferredWidth: 200
               Layout.preferredHeight: 26
-              radius: 5
+              radius: rSmall
               color: "transparent"
               border.color: labelInput.text.indexOf("|") !== -1 ? Color.urgent
                           : labelInput.activeFocus ? win.fg
@@ -1579,7 +1582,7 @@ PanelWindow {
             Rectangle {
               Layout.preferredWidth: 130
               Layout.preferredHeight: 26
-              radius: 5
+              radius: rSmall
               color: "transparent"
               border.color: monHover.containsMouse ? win.line : win.faint
               border.width: 1
@@ -1670,7 +1673,7 @@ PanelWindow {
                       // Outlined rather than filled, matching the tooltips —
                       // a row of filled pills reads as one grey mass, where
                       // outlines keep each pin separate at a glance.
-                      radius: 4
+                      radius: rSmall
                       color: Color.background
                       border.color: Color.accent
                       border.width: 1
@@ -1752,7 +1755,7 @@ PanelWindow {
             Rectangle {
               Layout.preferredWidth: 26
               Layout.preferredHeight: 26
-              radius: 5
+              radius: rSmall
               color: "transparent"
               border.color: addHoverArea.containsMouse ? Color.urgent : win.line
               border.width: 1
@@ -1782,7 +1785,7 @@ PanelWindow {
 
               Layout.preferredWidth: 26
               Layout.preferredHeight: 26
-              radius: 5
+              radius: rSmall
               color: "transparent"
               border.color: !armed ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.08)
                           : (removeHover.containsMouse ? win.dangerColor : win.line)
@@ -1816,7 +1819,7 @@ PanelWindow {
         visible: win.tab === "workspaces"
         Layout.preferredWidth: addText.implicitWidth + 24
         Layout.preferredHeight: 26
-        radius: 5
+        radius: rSmall
         color: "transparent"
         border.color: addHover.containsMouse ? win.fg : win.line
         border.width: 1
@@ -1843,7 +1846,7 @@ PanelWindow {
         visible: win.tab === "workspaces" && win.revision >= 0 && win.missingCount() > 0
         Layout.preferredWidth: importText.implicitWidth + 24
         Layout.preferredHeight: 26
-        radius: 5
+        radius: rSmall
         color: "transparent"
         border.color: win.fg
         border.width: 1
@@ -1877,7 +1880,7 @@ PanelWindow {
         Rectangle {
           Layout.preferredWidth: idText.implicitWidth + 24
           Layout.preferredHeight: 24
-          radius: 5
+          radius: rSmall
           color: "transparent"
           border.color: idHover.containsMouse ? Color.accent : win.line
           border.width: 1
@@ -1942,7 +1945,7 @@ PanelWindow {
       z: 20
       width: tipLabel.implicitWidth + 16
       height: tipLabel.implicitHeight + 10
-      radius: 4
+      radius: rSmall
       color: Color.background
       border.color: "#ffb020"
       border.width: 1
@@ -1971,7 +1974,7 @@ PanelWindow {
       anchors.centerIn: parent
       width: 420
       height: confirmCol.implicitHeight + 28
-      radius: 10
+      radius: rLarge
       color: Color.background
       border.color: win.dangerColor
       border.width: 1
@@ -2011,7 +2014,7 @@ PanelWindow {
           spacing: 10
 
           Rectangle {
-            width: 90; height: 30; radius: 6
+            width: 90; height: 30; radius: rSmall
             color: "transparent"
             border.color: win.line
             border.width: 1
@@ -2022,7 +2025,7 @@ PanelWindow {
           }
 
           Rectangle {
-            width: 90; height: 30; radius: 6
+            width: 90; height: 30; radius: rSmall
             color: win.dangerColor
             Text { anchors.centerIn: parent; text: "Delete"; color: "#1a1a1a"
                    font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
@@ -2049,7 +2052,7 @@ PanelWindow {
       anchors.centerIn: parent
       width: 460
       height: Math.min(pickerContent.implicitHeight + 28, win.height - 200)
-      radius: 10
+      radius: rLarge
       color: Color.background
       border.color: win.fg
       border.width: 1
@@ -2078,7 +2081,7 @@ PanelWindow {
           Rectangle {
             Layout.preferredWidth: 70
             Layout.preferredHeight: 24
-            radius: 5
+            radius: rSmall
             color: !win.pickerRunningOnly ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.15) : "transparent"
             border.color: win.line
             border.width: 1
@@ -2089,7 +2092,7 @@ PanelWindow {
           Rectangle {
             Layout.preferredWidth: 70
             Layout.preferredHeight: 24
-            radius: 5
+            radius: rSmall
             color: win.pickerRunningOnly ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.15) : "transparent"
             border.color: win.line
             border.width: 1
@@ -2101,7 +2104,7 @@ PanelWindow {
         Rectangle {
           Layout.fillWidth: true
           Layout.preferredHeight: 30
-          radius: 6
+          radius: rSmall
           color: "transparent"
           border.color: win.fg
           border.width: 1
@@ -2155,7 +2158,7 @@ PanelWindow {
             required property int index
             width: pickerList.width
             height: 30
-            radius: 5
+            radius: rSmall
             color: index === win.appSelected || pickerHover.containsMouse ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.12) : "transparent"
 
             RowLayout {

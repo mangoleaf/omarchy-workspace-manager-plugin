@@ -628,7 +628,7 @@ BarWidget {
 
   // Lives on the widget rather than in the editor so it can be flashed from
   // a keybind too, without the editor open.
-  Identify { id: identifyOverlay }
+  Identify { id: identifyOverlay; radiusLarge: root.roundLarge }
 
   function identifyMonitors() {
     identifyOverlay.flash()
@@ -758,6 +758,41 @@ BarWidget {
   // fires — in exactly the case title pins exist for. So watch windows
   // appear and rename themselves, and place them here instead.
   property var placed: ({})
+
+  // Corner radius follows the compositor, so this plugin's windows are
+  // shaped like every other window on the desktop instead of imposing a
+  // rounding the user did not choose. Someone running decoration:rounding = 0
+  // gets square popups.
+  property int hyprRounding: 10
+
+  readonly property int roundLarge: root.hyprRounding
+  // Inner controls sit at half the window radius — the proportion the panels
+  // were already drawn at, before this started following Hyprland.
+  readonly property int roundSmall: Math.round(root.hyprRounding * 0.5)
+
+  Process {
+    id: roundingProc
+    command: ["hyprctl", "getoption", "decoration:rounding", "-j"]
+    running: true
+    stdout: StdioCollector {
+      id: roundingOut
+      onStreamFinished: {
+        try {
+          var v = JSON.parse(roundingOut.text)
+          if (typeof v.int === "number") root.hyprRounding = Math.max(0, v.int)
+        } catch (e) {}
+      }
+    }
+  }
+
+  // Saving this editor reloads Hyprland, and the user may have changed
+  // rounding in the same pass.
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (String(event.name) === "configreloaded") roundingProc.running = true
+    }
+  }
 
   function pinMap() {
     var out = {}

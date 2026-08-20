@@ -12,6 +12,8 @@ Item {
 
   // Long enough to look up from the keyboard and across a desk, short enough
   // that it never feels like something to dismiss.
+  property int radiusLarge: 12
+
   property int seconds: 3
 
   property bool showing: false
@@ -60,7 +62,7 @@ Item {
         y: Math.round(parent.height * 0.08)
         width: stack.implicitWidth + 72
         height: stack.implicitHeight + 44
-        radius: 12
+        radius: root.radiusLarge
         color: Color.background
         border.color: Color.accent
         border.width: 2

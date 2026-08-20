@@ -22,6 +22,9 @@ PanelWindow {
   WlrLayershell.layer: WlrLayer.Overlay
   WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
+  readonly property int rLarge: widget ? widget.roundLarge : 10
+  readonly property int rSmall: widget ? widget.roundSmall : 5
+
   readonly property color fg: Color.foreground
   readonly property color dim: Qt.rgba(fg.r, fg.g, fg.b, 0.55)
   readonly property color line: Qt.rgba(fg.r, fg.g, fg.b, 0.18)
@@ -88,7 +91,7 @@ PanelWindow {
     y: Math.round(parent.height * 0.28)
     width: 420
     height: content.implicitHeight + 28
-    radius: 10
+    radius: rLarge
     color: Color.background
     border.color: win.line
     border.width: 1
@@ -112,7 +115,7 @@ PanelWindow {
       Rectangle {
         Layout.fillWidth: true
         Layout.preferredHeight: 32
-        radius: 6
+        radius: rSmall
         color: "transparent"
         border.color: input.text.indexOf("|") !== -1 ? Color.urgent : win.fg
         border.width: 1
