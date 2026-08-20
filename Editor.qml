@@ -733,6 +733,15 @@ PanelWindow {
 
         Item { Layout.fillWidth: true }
 
+        Text {
+          visible: widget && widget.pluginVersion !== ""
+          text: "v" + (widget ? widget.pluginVersion : "")
+          color: win.dim
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 3
+          Layout.rightMargin: 4
+        }
+
         // The explanation is a page of text that is worth reading once and
         // then never again, so it hides behind this rather than sitting
         // above the table forever.

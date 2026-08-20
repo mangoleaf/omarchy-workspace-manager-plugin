@@ -498,8 +498,22 @@ BarWidget {
   // line that loads it — which the editor can add, so nobody has to paste
   // anything they cannot read.
   readonly property string hyprMarker: "-- >>> omarchy-workspace-manager"
-  readonly property string pluginHyprDir:
-    Quickshell.env("HOME") + "/.config/omarchy/plugins/mangoleaf.workspace-manager/hypr/"
+  readonly property string pluginDir:
+    Quickshell.env("HOME") + "/.config/omarchy/plugins/mangoleaf.workspace-manager/"
+  readonly property string pluginHyprDir: root.pluginDir + "hypr/"
+
+  // Read from the manifest rather than written twice: a version in two
+  // places is a version that will disagree with itself.
+  property string pluginVersion: ""
+
+  FileView {
+    path: root.pluginDir + "manifest.json"
+    watchChanges: false
+    printErrors: false
+    onLoaded: {
+      try { root.pluginVersion = String(JSON.parse(text()).version || "") } catch (e) {}
+    }
+  }
 
   FileView {
     id: monitorsFile
