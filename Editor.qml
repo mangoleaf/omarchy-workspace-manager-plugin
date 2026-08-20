@@ -91,27 +91,9 @@ PanelWindow {
   // unbinds the old one for the three global hotkeys — but silently taking
   // a key away from something else is worse than saying so.
   property string conflictNote: ""
-  property string conflictCombo: ""
-  property string conflictWith: ""
 
-  // Tooltip for the warning badge, drawn at card level so the row's clipping
-  // does not cut it off.
-  property string tipText: ""
-  property real tipX: 0
-  property real tipY: 0
-
-  function showTip(hovered, item) {
-    if (!hovered || win.conflictWith === "") { win.tipText = ""; return }
-    var p = card.mapFromItem(item, item.width + 8, item.height / 2)
-    win.tipX = p.x
-    win.tipY = p.y
-    win.tipText = "takes it from " + win.conflictWith
-  }
-
-  // ponytail: six seconds is long enough to read a sentence and short
-  // enough that it is gone before it stops being about what you just did.
-  // A warning about taking a key from something else stays until the next
-  // capture replaces it. Only the passing remarks expire.
+  // A clash warning describes the current configuration and stays until it
+  // stops being true. Passing remarks — an import count — expire.
   property bool noteExpires: true
   onConflictNoteChanged: if (conflictNote !== "" && noteExpires) noteTimeout.restart()
 
@@ -120,52 +102,65 @@ PanelWindow {
     interval: 6000
     onTriggered: win.conflictNote = ""
   }
+  // Which combinations currently in use are taken from something else, as
+  // combination -> what it displaced. Derived by scanning, not remembered
+  // from a capture: a clash is a state of the configuration, so it has to
+  // survive closing and reopening the editor.
+  property var conflicts: ({})
 
-  // The three global hotkeys are one key each, for the same reason.
-  function claimGlobalHotkey(action, keys) {
-    if (keys === "") return
-    var names = { rename: "Rename", jump: "Jump", editor: "Editor" }
-    var fields = ["rename", "jump", "editor"]
-    for (var i = 0; i < fields.length; i++) {
-      var other = fields[i]
-      if (other === action) continue
-      var current = other === "rename" ? win.renameKey : other === "jump" ? win.jumpKey : win.editorKey
-      if (current !== keys) continue
-      if (other === "rename") win.renameKey = ""
-      else if (other === "jump") win.jumpKey = ""
-      else win.editorKey = ""
-      // No message: the other field visibly empties, which says it better.
-    }
+  function conflictFor(combo) {
+    return combo === "" ? "" : (win.conflicts[combo] || "")
   }
 
-  // A warning describes a state, not an event: if the combination it was
-  // about is no longer held by any field, or no longer collides with
-  // anything, it has stopped being true and goes away by itself.
-  function revalidateConflict() {
-    if (win.conflictCombo === "") return
-
-    var held = win.renameKey === win.conflictCombo
-            || win.jumpKey === win.conflictCombo
-            || win.editorKey === win.conflictCombo
-    for (var i = 0; i < win.rows.length && !held; i++)
-      if (win.rows[i].key !== "" && "SUPER + " + win.rows[i].key === win.conflictCombo) held = true
-
-    var stillCollides = widget && widget.bindingConflict(win.conflictCombo) !== ""
-    if (!held || !stillCollides) {
-      win.conflictCombo = ""
-      win.conflictWith = ""
-      win.conflictNote = ""
-    }
-  }
-
-  function noteConflict(keys) {
+  function rescanConflicts() {
     if (!widget) return
-    var hit = widget.bindingConflict(keys)
+
+    var combos = []
+    if (win.renameKey !== "") combos.push(win.renameKey)
+    if (win.jumpKey !== "") combos.push(win.jumpKey)
+    if (win.editorKey !== "") combos.push(win.editorKey)
+    for (var i = 0; i < win.rows.length; i++)
+      if (win.rows[i].key !== "") combos.push("SUPER + " + win.rows[i].key)
+
+    var out = {}
+    var n = 0
+    var firstCombo = ""
+    for (var c = 0; c < combos.length; c++) {
+      if (out[combos[c]] !== undefined) continue
+      var hit = widget.bindingConflict(combos[c])
+      if (hit === "") continue
+      out[combos[c]] = hit
+      if (n === 0) firstCombo = combos[c]
+      n++
+    }
+    win.conflicts = out
+
     win.noteExpires = false
-    win.conflictCombo = hit === "" ? "" : keys
-    win.conflictWith = hit
-    win.conflictNote = hit === "" ? ""
-      : "!  \u201c" + keys + "\u201d is already bound to " + hit + " — this takes it over."
+    win.conflictNote = n === 0 ? ""
+      : n === 1 ? "!  \u201c" + firstCombo + "\u201d is already bound to " + out[firstCombo]
+                  + " — this takes it over."
+      : "!  " + n + " hotkeys take keys that are already bound elsewhere — hover a badge for detail."
+  }
+
+  // The bind list arrives asynchronously; rescan when it does.
+  Connections {
+    target: win.widget
+    function onExistingBindsChanged() { win.rescanConflicts() }
+  }
+
+  // Tooltip for the warning badge, drawn at card level so the row's clipping
+  // does not cut it off.
+  property string tipText: ""
+  property real tipX: 0
+  property real tipY: 0
+
+  function showTip(hovered, item, combo) {
+    var what = win.conflictFor(combo)
+    if (!hovered || what === "") { win.tipText = ""; return }
+    var p = card.mapFromItem(item, item.width + 8, item.height / 2)
+    win.tipX = p.x
+    win.tipY = p.y
+    win.tipText = "takes it from " + what
   }
 
   function validate() {
@@ -515,10 +510,10 @@ PanelWindow {
     win.colorEmpty = widget ? widget.colorEmpty : ""
     win.lastAppliedPins = JSON.stringify(win.pinMap())
     win.tab = "workspaces"
-    win.conflictCombo = ""
-    win.conflictWith = ""
-    win.conflictNote = ""
+    win.conflicts = ({})
+    win.tipText = ""
     if (widget) widget.refreshBinds()
+    Qt.callLater(win.rescanConflicts)
 
     // Nothing configured yet: adopt what Hyprland already has rather than
     // opening on an empty table. Only ever on an empty list — once there is
@@ -576,6 +571,12 @@ PanelWindow {
   }
 
   function close() {
+    // A change made in the last half-second is still sitting behind the
+    // debounce. Closing must not be a way to lose it.
+    if (autosaveTimer.running) {
+      autosaveTimer.stop()
+      win.flush()
+    }
     win.visible = false
     win.applyBarLayout()
   }
@@ -632,7 +633,7 @@ PanelWindow {
     }
     win.rows = copy
     win.revision++
-    win.revalidateConflict()
+    win.rescanConflicts()
     win.autosave()
   }
 
@@ -657,8 +658,8 @@ PanelWindow {
     // Check before rebuilding the rows. touch() destroys and recreates the
     // delegates, which takes the handler that called this down with it — a
     // second statement after it never runs.
-    win.noteConflict(keys === "" ? "" : "SUPER + " + keys)
     win.touch()
+    win.rescanConflicts()
   }
 
 
@@ -891,9 +892,8 @@ PanelWindow {
               Layout.preferredHeight: 26
               value: modelData.key === "rename" ? win.renameKey
                    : modelData.key === "jump" ? win.jumpKey : win.editorKey
-              warn: win.conflictCombo !== "" && win.conflictCombo === value
-              warnText: win.conflictWith
-              onWarnHover: function(hovered) { win.showTip(hovered, this) }
+              warn: win.conflictFor(value) !== ""
+              onWarnHover: function(hovered) { win.showTip(hovered, this, value) }
               fg: win.fg
               dimColor: win.dim
               lineColor: win.line
@@ -903,17 +903,14 @@ PanelWindow {
                 else win.editorKey = keys
                 value = keys
                 win.claimGlobalHotkey(modelData.key, keys)
-                win.noteConflict(keys)
+                win.rescanConflicts()
                 win.autosave()
               }
             }
 
             Text {
-              readonly property bool warned: win.conflictCombo !== ""
-                && win.conflictCombo === (modelData.key === "rename" ? win.renameKey
-                                        : modelData.key === "jump" ? win.jumpKey : win.editorKey)
-              text: warned ? "takes it from " + win.conflictWith : modelData.hint
-              color: warned ? "#ffb020" : win.dim
+              text: modelData.hint
+              color: win.dim
               font.family: Style.font.family
               font.pixelSize: Style.font.body - 2
               Layout.fillWidth: true
@@ -1583,10 +1580,8 @@ PanelWindow {
               Layout.preferredWidth: 230
               Layout.preferredHeight: 26
               value: rowRoot.row.key
-              warn: win.conflictCombo !== "" && rowRoot.row.key !== ""
-                    && win.conflictCombo === "SUPER + " + rowRoot.row.key
-              warnText: win.conflictWith
-              onWarnHover: function(hovered) { win.showTip(hovered, this) }
+              warn: rowRoot.row.key !== "" && win.conflictFor("SUPER + " + rowRoot.row.key) !== ""
+              onWarnHover: function(hovered) { win.showTip(hovered, this, "SUPER + " + rowRoot.row.key) }
               displayPrefix: "SUPER + "
               stripSuper: true
               fg: win.fg
