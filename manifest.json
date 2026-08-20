@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "mangoleaf.workspace-manager",
   "name": "Omarchy Workspace Manager",
-  "version": "1.7.1",
+  "version": "1.8.0",
   "author": "Mangoleaf Studios",
   "license": "MIT",
   "description": "Named per-monitor workspaces with an editor for names, monitors, hotkeys and pinned apps, plus a fuzzy workspace/window finder",

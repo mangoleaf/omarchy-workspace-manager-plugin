@@ -50,15 +50,31 @@ if f then
       for app in (apps or ""):gmatch("[^,]+") do
         local pattern = app:match("^%s*(.-)%s*$")
         if pattern ~= "" then
-          -- Class matching is a case-sensitive regex, so a pin written as
-          -- "xclock" silently never fires against the class "XClock" — no
-          -- error, the window just opens wherever it would have anyway. Ask
-          -- for case-insensitive matching unless the pattern already sets
-          -- its own flags.
-          if not pattern:match("^%(%?") then
-            pattern = "(?i)" .. pattern
+          -- A pin prefixed "title:" matches the window title instead of its
+          -- class. Web apps need this: every Firefox web app reports the
+          -- class "firefox", so a class pin cannot tell YouTube from any
+          -- other Firefox window, while its title can.
+          local wanted = pattern:match("^title:%s*(.+)$")
+          local target = wanted or pattern
+
+          -- Class and title matching are case-sensitive regexes, so a pin
+          -- written as "xclock" silently never fires against the class
+          -- "XClock" — no error, the window just opens wherever it would
+          -- have anyway. Ask for case-insensitive matching unless the
+          -- pattern already sets its own flags.
+          if not target:match("^%(%?") then
+            -- A rule has to match the whole class or title, not part of it.
+            -- Classes are picked whole, but a title is a sentence — "YouTube"
+            -- is meant to find "YouTube — Mozilla Firefox" — so a title
+            -- pattern matches anywhere within the title.
+            target = wanted and ("(?i).*" .. target .. ".*") or ("(?i)" .. target)
           end
-          o.window(pattern, { workspace = id })
+
+          if wanted then
+            o.window({ title = target }, { workspace = id })
+          else
+            o.window(target, { workspace = id })
+          end
         end
       end
     else

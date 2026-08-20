@@ -170,6 +170,18 @@ terminal will drag every window of that class along with it. Matching
 ignores case, so `xclock` finds the class `XClock`; a pattern that sets its
 own flags — one starting `(?` — is used exactly as written.
 
+**Web apps need a title, not a class.** Every Firefox web app reports the
+class `firefox`, so pinning `YouTube` matches nothing and pinning `firefox`
+takes every Firefox window with it. Prefix the pin with `title:` to match the
+window title instead:
+
+```
+title:YouTube
+```
+
+A title pin matches anywhere in the title, so `title:YouTube` finds
+*YouTube — Mozilla Firefox*. A class pin still has to match the whole class.
+
 ## Config format
 
 `~/.config/hypr/workspaces.conf`, one workspace per line:
