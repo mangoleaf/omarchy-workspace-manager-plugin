@@ -92,6 +92,16 @@ PanelWindow {
   // a key away from something else is worse than saying so.
   property string conflictNote: ""
 
+  // ponytail: six seconds is long enough to read a sentence and short
+  // enough that it is gone before it stops being about what you just did.
+  onConflictNoteChanged: if (conflictNote !== "") noteTimeout.restart()
+
+  Timer {
+    id: noteTimeout
+    interval: 6000
+    onTriggered: win.conflictNote = ""
+  }
+
   // The three global hotkeys are one key each, for the same reason.
   function claimGlobalHotkey(action, keys) {
     if (keys === "") return
@@ -105,7 +115,7 @@ PanelWindow {
       if (other === "rename") win.renameKey = ""
       else if (other === "jump") win.jumpKey = ""
       else win.editorKey = ""
-      win.conflictNote = "Taken from the " + names[other] + " hotkey, which now has none."
+      // No message: the other field visibly empties, which says it better.
     }
   }
 
@@ -591,18 +601,12 @@ PanelWindow {
     // A key belongs to one workspace. Assigning it here takes it from
     // whoever had it, rather than leaving two rows claiming the same
     // combination and letting whichever binds last win.
-    var takenFrom = ""
     if (keys !== "") {
-      for (var i = 0; i < win.rows.length; i++) {
-        if (i === index || win.rows[i].key !== keys) continue
-        takenFrom = win.rows[i].label !== "" ? win.rows[i].label : win.rows[i].prefix
-        win.rows[i].key = ""
-      }
+      for (var i = 0; i < win.rows.length; i++)
+        if (i !== index && win.rows[i].key === keys) win.rows[i].key = ""
     }
 
     win.rows[index].key = keys
-    if (takenFrom !== "")
-      win.conflictNote = "Moved from \u201c" + takenFrom + "\u201d, which now has no key."
     win.touch()
   }
 
