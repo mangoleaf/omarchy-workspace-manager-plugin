@@ -682,7 +682,7 @@ PanelWindow {
   Rectangle {
     id: card
     anchors.centerIn: parent
-    width: 940
+    width: 1180
     height: Math.min(win.height - 120, content.implicitHeight + 40)
     radius: 10
     color: Color.background
@@ -1475,18 +1475,13 @@ PanelWindow {
           required property var modelData
           required property int index
           width: list.width
-          height: 30
+          height: Math.max(30, appsFlow.implicitHeight + 8)
           radius: 5
           color: rowDrop.containsDrag ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.10) : "transparent"
 
           readonly property var row: modelData
           readonly property var appList: modelData.apps === "" ? [] : modelData.apps.split(",")
 
-          // Tags are drawn in a column that has to end before the buttons do.
-          // Two fit; the rest are counted, and named on hovering the count.
-          readonly property int maxChips: 2
-          readonly property var shownApps: rowRoot.appList.slice(0, rowRoot.maxChips)
-          readonly property var hiddenApps: rowRoot.appList.slice(rowRoot.maxChips)
 
           // Any app tag dragged from another row can be dropped anywhere on
           // this row to re-pin it here.
@@ -1607,15 +1602,19 @@ PanelWindow {
             // move the pin there.
             Item {
               Layout.fillWidth: true
-              Layout.preferredHeight: 26
-              clip: true
+              Layout.preferredHeight: Math.max(26, appsFlow.implicitHeight)
 
-              Row {
+              // Wrapping rather than truncating: a tag that is not drawn is a
+              // pin that cannot be removed or dragged, and hiding the control
+              // is worse than spending the height.
+              Flow {
+                id: appsFlow
+                width: parent.width
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
 
                 Repeater {
-                  model: rowRoot.shownApps
+                  model: rowRoot.appList
 
                   Item {
                     id: chipSlot
@@ -1646,7 +1645,12 @@ PanelWindow {
                         anchors.left: parent.left
                         anchors.leftMargin: 8
                         anchors.verticalCenter: parent.verticalCenter
-                        text: chipRect.appName.length > 24 ? chipRect.appName.slice(0, 22) + "…" : chipRect.appName
+                        // Class names are long and their tail is the
+                        // distinctive part, so keep that rather than the
+                        // reverse-DNS prefix everything shares.
+                        text: chipRect.appName.length > 16
+                          ? "…" + chipRect.appName.slice(-15)
+                          : chipRect.appName
                         color: win.fg
                         font.family: Style.font.family
                         font.pixelSize: Style.font.body - 2
@@ -1690,34 +1694,6 @@ PanelWindow {
                   }
                 }
 
-                // What did not fit, counted rather than cut off.
-                Rectangle {
-                  visible: rowRoot.hiddenApps.length > 0
-                  anchors.verticalCenter: parent.verticalCenter
-                  width: moreText.implicitWidth + 14
-                  height: 20
-                  radius: 10
-                  color: "transparent"
-                  border.color: win.line
-                  border.width: 1
-
-                  Text {
-                    id: moreText
-                    anchors.centerIn: parent
-                    text: "+" + rowRoot.hiddenApps.length
-                    color: win.dim
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.body - 2
-                  }
-
-                  MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onEntered: win.showTextTip(true, parent, rowRoot.hiddenApps.join(", "))
-                    onExited: win.showTextTip(false, parent, "")
-                  }
-                }
               }
             }
 
