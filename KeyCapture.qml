@@ -27,6 +27,11 @@ Rectangle {
   // used, so the field says it too.
   property bool warn: false
 
+  // What the combination is taken from, shown on hovering the badge rather
+  // than beside the field, where pinned app tags need the room.
+  property string warnText: ""
+  signal warnHover(bool hovered)
+
   // Fixed, not themed: a warning has to read as a warning on a theme whose
   // accent is green.
   readonly property color warnColor: "#ffb020"
@@ -115,6 +120,14 @@ Rectangle {
       font.family: Style.font.family
       font.pixelSize: Style.font.body - 2
       font.bold: true
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      anchors.margins: -3
+      hoverEnabled: true
+      onEntered: root.warnHover(true)
+      onExited: root.warnHover(false)
     }
   }
 

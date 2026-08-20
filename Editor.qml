@@ -94,6 +94,20 @@ PanelWindow {
   property string conflictCombo: ""
   property string conflictWith: ""
 
+  // Tooltip for the warning badge, drawn at card level so the row's clipping
+  // does not cut it off.
+  property string tipText: ""
+  property real tipX: 0
+  property real tipY: 0
+
+  function showTip(hovered, item) {
+    if (!hovered || win.conflictWith === "") { win.tipText = ""; return }
+    var p = card.mapFromItem(item, item.width + 8, item.height / 2)
+    win.tipX = p.x
+    win.tipY = p.y
+    win.tipText = "takes it from " + win.conflictWith
+  }
+
   // ponytail: six seconds is long enough to read a sentence and short
   // enough that it is gone before it stops being about what you just did.
   // A warning about taking a key from something else stays until the next
@@ -878,6 +892,8 @@ PanelWindow {
               value: modelData.key === "rename" ? win.renameKey
                    : modelData.key === "jump" ? win.jumpKey : win.editorKey
               warn: win.conflictCombo !== "" && win.conflictCombo === value
+              warnText: win.conflictWith
+              onWarnHover: function(hovered) { win.showTip(hovered, this) }
               fg: win.fg
               dimColor: win.dim
               lineColor: win.line
@@ -1569,23 +1585,14 @@ PanelWindow {
               value: rowRoot.row.key
               warn: win.conflictCombo !== "" && rowRoot.row.key !== ""
                     && win.conflictCombo === "SUPER + " + rowRoot.row.key
+              warnText: win.conflictWith
+              onWarnHover: function(hovered) { win.showTip(hovered, this) }
               displayPrefix: "SUPER + "
               stripSuper: true
               fg: win.fg
               dimColor: win.dim
               lineColor: win.line
               onCaptured: function(keys) { win.setKey(rowRoot.index, keys) }
-            }
-
-            Text {
-              visible: win.conflictCombo !== "" && rowRoot.row.key !== ""
-                       && win.conflictCombo === "SUPER + " + rowRoot.row.key
-              text: "takes it from " + win.conflictWith
-              color: "#ffb020"
-              font.family: Style.font.family
-              font.pixelSize: Style.font.body - 2
-              elide: Text.ElideRight
-              Layout.maximumWidth: 190
             }
 
             // Pinned apps as tags: ✕ removes, drag a tag onto another row to
@@ -1816,6 +1823,27 @@ PanelWindow {
           Layout.fillWidth: true
           horizontalAlignment: Text.AlignRight
         }
+      }
+    }
+    Rectangle {
+      visible: win.tipText !== ""
+      x: Math.min(win.tipX, card.width - width - 8)
+      y: win.tipY - height / 2
+      z: 20
+      width: tipLabel.implicitWidth + 16
+      height: tipLabel.implicitHeight + 10
+      radius: 4
+      color: Color.background
+      border.color: "#ffb020"
+      border.width: 1
+
+      Text {
+        id: tipLabel
+        anchors.centerIn: parent
+        text: win.tipText
+        color: "#ffb020"
+        font.family: Style.font.family
+        font.pixelSize: Style.font.body - 2
       }
     }
   }
