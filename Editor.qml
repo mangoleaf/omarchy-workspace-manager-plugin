@@ -1722,9 +1722,12 @@ PanelWindow {
 
                       width: chipText.implicitWidth + 30
                       height: 20
-                      radius: 10
-                      color: Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.12)
-                      border.color: win.line
+                      // Outlined rather than filled, matching the tooltips —
+                      // a row of filled pills reads as one grey mass, where
+                      // outlines keep each pin separate at a glance.
+                      radius: 4
+                      color: Color.background
+                      border.color: win.fg
                       border.width: 1
 
                       Drag.active: chipDrag.drag.active
