@@ -92,6 +92,23 @@ PanelWindow {
   // a key away from something else is worse than saying so.
   property string conflictNote: ""
 
+  // The three global hotkeys are one key each, for the same reason.
+  function claimGlobalHotkey(action, keys) {
+    if (keys === "") return
+    var names = { rename: "Rename", jump: "Jump", editor: "Editor" }
+    var fields = ["rename", "jump", "editor"]
+    for (var i = 0; i < fields.length; i++) {
+      var other = fields[i]
+      if (other === action) continue
+      var current = other === "rename" ? win.renameKey : other === "jump" ? win.jumpKey : win.editorKey
+      if (current !== keys) continue
+      if (other === "rename") win.renameKey = ""
+      else if (other === "jump") win.jumpKey = ""
+      else win.editorKey = ""
+      win.conflictNote = "Taken from the " + names[other] + " hotkey, which now has none."
+    }
+  }
+
   function noteConflict(keys) {
     if (!widget) return
     var hit = widget.bindingConflict(keys)
@@ -571,7 +588,21 @@ PanelWindow {
   }
 
   function setKey(index, keys) {
+    // A key belongs to one workspace. Assigning it here takes it from
+    // whoever had it, rather than leaving two rows claiming the same
+    // combination and letting whichever binds last win.
+    var takenFrom = ""
+    if (keys !== "") {
+      for (var i = 0; i < win.rows.length; i++) {
+        if (i === index || win.rows[i].key !== keys) continue
+        takenFrom = win.rows[i].label !== "" ? win.rows[i].label : win.rows[i].prefix
+        win.rows[i].key = ""
+      }
+    }
+
     win.rows[index].key = keys
+    if (takenFrom !== "")
+      win.conflictNote = "Moved from \u201c" + takenFrom + "\u201d, which now has no key."
     win.touch()
   }
 
@@ -813,6 +844,7 @@ PanelWindow {
                 else if (modelData.key === "jump") win.jumpKey = keys
                 else win.editorKey = keys
                 value = keys
+                win.claimGlobalHotkey(modelData.key, keys)
                 win.noteConflict(keys)
                 win.autosave()
               }
