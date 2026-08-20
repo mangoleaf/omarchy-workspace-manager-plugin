@@ -154,6 +154,15 @@ PanelWindow {
   property real tipX: 0
   property real tipY: 0
 
+  // Generic tooltip, used by the overflow pill as well as the clash badge.
+  function showTextTip(hovered, item, text) {
+    if (!hovered || text === "") { win.tipText = ""; return }
+    var p = card.mapFromItem(item, item.width + 8, item.height / 2)
+    win.tipX = p.x
+    win.tipY = p.y
+    win.tipText = text
+  }
+
   function showTip(hovered, item, combo) {
     var what = win.conflictFor(combo)
     if (!hovered || what === "") { win.tipText = ""; return }
@@ -1473,6 +1482,12 @@ PanelWindow {
           readonly property var row: modelData
           readonly property var appList: modelData.apps === "" ? [] : modelData.apps.split(",")
 
+          // Tags are drawn in a column that has to end before the buttons do.
+          // Two fit; the rest are counted, and named on hovering the count.
+          readonly property int maxChips: 2
+          readonly property var shownApps: rowRoot.appList.slice(0, rowRoot.maxChips)
+          readonly property var hiddenApps: rowRoot.appList.slice(rowRoot.maxChips)
+
           // Any app tag dragged from another row can be dropped anywhere on
           // this row to re-pin it here.
           DropArea {
@@ -1593,13 +1608,14 @@ PanelWindow {
             Item {
               Layout.fillWidth: true
               Layout.preferredHeight: 26
+              clip: true
 
               Row {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
 
                 Repeater {
-                  model: rowRoot.appList
+                  model: rowRoot.shownApps
 
                   Item {
                     id: chipSlot
@@ -1671,6 +1687,35 @@ PanelWindow {
                         onClicked: win.removeApp(rowRoot.index, chipRect.appName)
                       }
                     }
+                  }
+                }
+
+                // What did not fit, counted rather than cut off.
+                Rectangle {
+                  visible: rowRoot.hiddenApps.length > 0
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: moreText.implicitWidth + 14
+                  height: 20
+                  radius: 10
+                  color: "transparent"
+                  border.color: win.line
+                  border.width: 1
+
+                  Text {
+                    id: moreText
+                    anchors.centerIn: parent
+                    text: "+" + rowRoot.hiddenApps.length
+                    color: win.dim
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body - 2
+                  }
+
+                  MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onEntered: win.showTextTip(true, parent, rowRoot.hiddenApps.join(", "))
+                    onExited: win.showTextTip(false, parent, "")
                   }
                 }
               }
