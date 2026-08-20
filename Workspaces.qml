@@ -514,12 +514,19 @@ BarWidget {
   function openDocs() { docsProc.running = true }
 
   FileView {
+    id: manifestFile
     path: root.pluginDir + "manifest.json"
-    watchChanges: false
+    // Watched, because `omarchy plugin update` replaces this file underneath
+    // a running shell — an unwatched read would keep showing the version the
+    // user had before they updated.
+    watchChanges: true
     printErrors: false
-    onLoaded: {
-      try { root.pluginVersion = String(JSON.parse(text()).version || "") } catch (e) {}
-    }
+    onLoaded: root.readVersion(text())
+    onFileChanged: manifestFile.reload()
+  }
+
+  function readVersion(text) {
+    try { root.pluginVersion = String(JSON.parse(text).version || "") } catch (e) {}
   }
 
   FileView {
