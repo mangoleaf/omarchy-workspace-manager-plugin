@@ -114,7 +114,7 @@ Right-click any workspace in the bar, or press the editor hotkey.
 | Name | click to rename |
 | Monitor | click to cycle through your displays, or **Any monitor** to leave it unpinned |
 | Hotkey | click, then press the combination — it is captured, not typed. Your existing bindings are suspended while it listens, so a combination that is already taken still records rather than firing. `SUPER` is implied on workspace rows |
-| Apps | pinned apps as tags. **+** opens a searchable list of installed apps, **✕** unpins, and dragging a tag onto another workspace re-pins it there |
+| Apps | pinned apps as tags. **+** opens a searchable list of installed apps, **✕** unpins. **Drag a tag onto another workspace row to move the pin there** — see below |
 
 **+ Add workspace** appends one; the trash button removes it, unless it still
 holds windows.
@@ -159,6 +159,11 @@ button: the picker lists every installed application with its icon, and can be
 filtered to just what is running — a running window reports its class exactly,
 while an app that has never run is a best-effort guess from its desktop entry.
 If a pin does not fire, launch the app once and re-pick it from **Running**.
+
+**Moving a pin between workspaces:** drag its tag from one workspace's row
+onto another. The pin moves, and when you close the editor that app's open
+windows move with it — so re-homing an app is one drag rather than an unpin,
+a re-pin, and moving its windows by hand.
 
 Values are window-class regexes, so pin narrowly. Pinning a browser or a
 terminal will drag every window of that class along with it.

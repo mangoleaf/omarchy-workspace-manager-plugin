@@ -506,6 +506,13 @@ BarWidget {
   // places is a version that will disagree with itself.
   property string pluginVersion: ""
 
+  readonly property string docsUrl:
+    "https://github.com/mangoleaf/omarchy-workspace-manager-plugin"
+
+  Process { id: docsProc; command: ["xdg-open", root.docsUrl] }
+
+  function openDocs() { docsProc.running = true }
+
   FileView {
     path: root.pluginDir + "manifest.json"
     watchChanges: false

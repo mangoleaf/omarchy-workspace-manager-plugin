@@ -857,14 +857,47 @@ PanelWindow {
         }
       }
 
-      Text {
+      // One line per thing, rather than a paragraph nobody finishes.
+      ColumnLayout {
         visible: win.tab === "workspaces" && win.showHelp
-        text: "Everything here saves as you change it — Esc closes. Click a number, name or monitor to edit it; “Any monitor” leaves a workspace free to open wherever focus is. Click a hotkey and press the combination you want: your existing bindings are suspended while it listens, so a key that is already taken still records, and SUPER is implied on workspace rows. “+” pins an app so it always opens on that workspace, a tag can be dragged to another workspace to move the pin, and “✕” unpins it — a pinned app's open windows follow. A workspace can only be deleted once its windows have moved elsewhere."
-        color: win.dim
-        font.family: Style.font.family
-        font.pixelSize: Style.font.body - 1
         Layout.fillWidth: true
-        wrapMode: Text.WordWrap
+        spacing: 3
+
+        Repeater {
+          model: [
+            "Everything saves as you change it. Esc closes.",
+            "Click a number, name or monitor to edit it. “Any monitor” leaves a workspace free to open wherever focus is.",
+            "Click a hotkey, then press the combination. Existing bindings are suspended while it listens, so a key that is already taken still records. SUPER is implied on workspace rows.",
+            "“+” pins an app so it always opens on that workspace. “✕” unpins it.",
+            "Drag a tag from one workspace onto another to move the pin — the app's open windows follow when you close the editor.",
+            "A workspace can only be deleted once its windows have moved elsewhere."
+          ]
+
+          Text {
+            required property string modelData
+            text: "· " + modelData
+            color: win.dim
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body - 1
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+          }
+        }
+
+        Text {
+          text: "· Full documentation: " + (widget ? widget.docsUrl : "")
+          color: win.fg
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 1
+          Layout.fillWidth: true
+          wrapMode: Text.WordWrap
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: if (widget) widget.openDocs()
+          }
+        }
       }
 
       // Settings pane — one row per setting
