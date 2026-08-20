@@ -640,8 +640,11 @@ PanelWindow {
     }
 
     win.rows[index].key = keys
+    // Check before rebuilding the rows. touch() destroys and recreates the
+    // delegates, which takes the handler that called this down with it — a
+    // second statement after it never runs.
+    win.noteConflict(keys === "" ? "" : "SUPER + " + keys)
     win.touch()
-    win.revalidateConflict()
   }
 
 
@@ -1571,7 +1574,7 @@ PanelWindow {
               fg: win.fg
               dimColor: win.dim
               lineColor: win.line
-              onCaptured: function(keys) { win.setKey(rowRoot.index, keys); win.noteConflict("SUPER + " + keys) }
+              onCaptured: function(keys) { win.setKey(rowRoot.index, keys) }
             }
 
             Text {
