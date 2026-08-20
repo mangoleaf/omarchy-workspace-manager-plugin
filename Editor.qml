@@ -220,7 +220,7 @@ PanelWindow {
 
     // Only chase windows when the pins actually changed, so an unrelated
     // edit does not yank windows around.
-    var pins = JSON.stringify(win.pinMap())
+    var pins = JSON.stringify(win.widget ? win.widget.pinMap() : ({}))
     if (pins !== win.lastAppliedPins) {
       win.applyPinMoves()
       win.lastAppliedPins = pins
@@ -595,7 +595,7 @@ PanelWindow {
     win.colorUnfocused = widget ? widget.colorUnfocused : ""
     win.colorOccupied = widget ? widget.colorOccupied : ""
     win.colorEmpty = widget ? widget.colorEmpty : ""
-    win.lastAppliedPins = JSON.stringify(win.pinMap())
+    win.lastAppliedPins = JSON.stringify(win.widget ? win.widget.pinMap() : ({}))
     win.tab = "workspaces"
     win.conflicts = ({})
     win.tipText = ""
