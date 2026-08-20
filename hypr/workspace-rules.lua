@@ -50,6 +50,14 @@ if f then
       for app in (apps or ""):gmatch("[^,]+") do
         local pattern = app:match("^%s*(.-)%s*$")
         if pattern ~= "" then
+          -- Class matching is a case-sensitive regex, so a pin written as
+          -- "xclock" silently never fires against the class "XClock" — no
+          -- error, the window just opens wherever it would have anyway. Ask
+          -- for case-insensitive matching unless the pattern already sets
+          -- its own flags.
+          if not pattern:match("^%(%?") then
+            pattern = "(?i)" .. pattern
+          end
           o.window(pattern, { workspace = id })
         end
       end

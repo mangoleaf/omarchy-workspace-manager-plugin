@@ -166,7 +166,9 @@ windows move with it — so re-homing an app is one drag rather than an unpin,
 a re-pin, and moving its windows by hand.
 
 Values are window-class regexes, so pin narrowly. Pinning a browser or a
-terminal will drag every window of that class along with it.
+terminal will drag every window of that class along with it. Matching
+ignores case, so `xclock` finds the class `XClock`; a pattern that sets its
+own flags — one starting `(?` — is used exactly as written.
 
 ## Config format
 
