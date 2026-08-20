@@ -386,22 +386,30 @@ BarWidget {
     id: readBinds
     command: ["hyprctl", "binds", "-j"]
     stdout: StdioCollector {
-      onStreamFinished: {
-        var map = {}
-        try {
-          var all = JSON.parse(this.text)
-          for (var i = 0; i < all.length; i++) {
-            var b = all[i]
-            if (!b.key || b.key === "") continue
-            map[b.modmask + "|" + String(b.key).toUpperCase()] = String(b.description || "a binding")
-          }
-        } catch (e) {}
-        root.existingBinds = map
-      }
+      id: bindsOut
+      onStreamFinished: root.parseBinds(bindsOut.text)
     }
   }
 
+  function parseBinds(text) {
+    var map = {}
+    try {
+      var all = JSON.parse(text)
+      for (var i = 0; i < all.length; i++) {
+        var b = all[i]
+        if (!b.key || b.key === "") continue
+        map[b.modmask + "|" + String(b.key).toUpperCase()] = String(b.description || "a binding")
+      }
+    } catch (e) {}
+    root.existingBinds = map
+  }
+
   function refreshBinds() { readBinds.running = true }
+
+  // Read once at startup as well as on open: the read is asynchronous, and a
+  // capture completed moments after opening would otherwise be checked
+  // against an empty list and reported as free.
+  Component.onCompleted: root.refreshBinds()
 
   // "SUPER + SHIFT + F2" -> the modmask Hyprland reports, so a captured
   // combination can be compared against what is already bound.

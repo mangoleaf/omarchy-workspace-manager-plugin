@@ -94,7 +94,10 @@ PanelWindow {
 
   // ponytail: six seconds is long enough to read a sentence and short
   // enough that it is gone before it stops being about what you just did.
-  onConflictNoteChanged: if (conflictNote !== "") noteTimeout.restart()
+  // A warning about taking a key from something else stays until the next
+  // capture replaces it. Only the passing remarks expire.
+  property bool noteExpires: true
+  onConflictNoteChanged: if (conflictNote !== "" && noteExpires) noteTimeout.restart()
 
   Timer {
     id: noteTimeout
@@ -122,8 +125,9 @@ PanelWindow {
   function noteConflict(keys) {
     if (!widget) return
     var hit = widget.bindingConflict(keys)
+    win.noteExpires = false
     win.conflictNote = hit === "" ? ""
-      : "\u201c" + keys + "\u201d was already bound to " + hit + " — this takes it over."
+      : "\u201c" + keys + "\u201d is already bound to " + hit + " — this takes it over."
   }
 
   function validate() {
@@ -372,6 +376,7 @@ PanelWindow {
     copy.sort(function(a, b) { return a.id - b.id })
     win.rows = copy
     win.errorText = ""
+    win.noteExpires = true
     win.conflictNote = added === 0
       ? "Nothing to import — every workspace Hyprland has is already listed."
       : "Imported " + added + (added === 1 ? " workspace" : " workspaces") + " from Hyprland."
