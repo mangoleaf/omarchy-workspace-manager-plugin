@@ -701,32 +701,21 @@ PanelWindow {
         Repeater {
           model: [{ id: "workspaces", label: "Workspaces" }, { id: "settings", label: "Settings" }]
 
-          ColumnLayout {
+          Text {
             required property var modelData
-            spacing: 3
+            readonly property bool selected: win.tab === modelData.id
 
-            Text {
-              id: tabLabel
-              text: parent.modelData.label
-              color: win.tab === parent.modelData.id ? win.fg : win.dim
-              font.family: Style.font.family
-              font.pixelSize: Style.font.body + 3
-              font.bold: win.tab === parent.modelData.id
-            }
-
-            Rectangle {
-              Layout.preferredWidth: tabLabel.implicitWidth
-              Layout.preferredHeight: 2
-              radius: 1
-              color: win.fg
-              visible: win.tab === parent.modelData.id
-            }
+            text: modelData.label
+            color: selected ? win.fg : win.dim
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body + 3
+            font.bold: selected
 
             MouseArea {
               anchors.fill: parent
               anchors.margins: -4
               cursorShape: Qt.PointingHandCursor
-              onClicked: win.tab = parent.modelData.id
+              onClicked: win.tab = modelData.id
             }
           }
         }
