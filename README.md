@@ -182,6 +182,10 @@ title:YouTube
 A title pin matches anywhere in the title, so `title:YouTube` finds
 *YouTube — Mozilla Firefox*. A class pin still has to match the whole class.
 
+The **+** picker offers both: every installed app by class, and every open
+window by title, listed as `title:…`. Anything it does not know about can be
+typed into its search box and taken as written.
+
 ## Config format
 
 `~/.config/hypr/workspaces.conf`, one workspace per line:

@@ -299,6 +299,30 @@ PanelWindow {
     return out
   }
 
+  // Web apps all share their browser's class, so the class list cannot tell
+  // one from another. Every open window is also offered by its title, which
+  // can.
+  readonly property var titleCandidates: {
+    if (win.appsPickerRow < 0) return []
+    var out = []
+    var seen = {}
+    var values = Hyprland.toplevels.values
+    for (var i = 0; i < values.length; i++) {
+      var title = String(values[i].title || "")
+      if (title === "" || seen[title]) continue
+      seen[title] = true
+      var ipc = values[i].lastIpcObject || ({})
+      var cls = String(ipc["class"] || ipc.initialClass || "")
+      out.push({
+        cls: "title:" + title,
+        name: "by title, from " + (cls === "" ? "a window" : cls),
+        running: true,
+        icon: win.classIcon(cls)
+      })
+    }
+    return out
+  }
+
   function scoreApp(item, q) {
     if (q === "") return 0
     var hay = (item.cls + " " + item.name).toLowerCase()
@@ -320,7 +344,8 @@ PanelWindow {
   }
 
   readonly property var pickerItems: {
-    var source = win.pickerRunningOnly ? win.runningApps : win.installedApps
+    var source = (win.pickerRunningOnly ? win.runningApps : win.installedApps)
+      .concat(win.titleCandidates)
     var out = []
     for (var i = 0; i < source.length; i++) {
       var sc = win.scoreApp(source[i], win.appQuery)
@@ -332,6 +357,16 @@ PanelWindow {
     })
     var items = []
     for (var j = 0; j < out.length; j++) items.push(out[j].item)
+
+    // Nothing in the list is an exact match for what was typed: offer it as
+    // written, so a pattern the picker cannot know about is still reachable.
+    var typed = win.appQuery.trim()
+    if (typed !== "") {
+      var exact = false
+      for (var k = 0; k < items.length; k++) if (items[k].cls === typed) { exact = true; break }
+      if (!exact)
+        items.unshift({ cls: typed, name: "use exactly as typed", running: false, icon: "" })
+    }
     return items
   }
 
