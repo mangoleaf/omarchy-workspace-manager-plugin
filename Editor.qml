@@ -87,6 +87,18 @@ PanelWindow {
     autosaveTimer.restart()
   }
 
+  // A captured combination that Hyprland already uses. Not fatal — ours
+  // unbinds the old one for the three global hotkeys — but silently taking
+  // a key away from something else is worse than saying so.
+  property string conflictNote: ""
+
+  function noteConflict(keys) {
+    if (!widget) return
+    var hit = widget.bindingConflict(keys)
+    win.conflictNote = hit === "" ? ""
+      : "\u201c" + keys + "\u201d was already bound to " + hit + " — this takes it over."
+  }
+
   function validate() {
     if (win.renameKey.indexOf("|") !== -1 || win.jumpKey.indexOf("|") !== -1 || win.editorKey.indexOf("|") !== -1)
       return "Hotkeys must not contain \"|\" (it is the field separator)"
@@ -302,6 +314,44 @@ PanelWindow {
     return name === "" ? "Any monitor" : name
   }
 
+  // Adopt whatever Hyprland already has, so someone installing this on a
+  // machine they have been using does not retype a setup that exists.
+  // How many of Hyprland's workspaces are not in the list yet.
+  function missingCount() {
+    if (!widget) return 0
+    var found = widget.importableRows()
+    var byId = {}
+    for (var i = 0; i < win.rows.length; i++) byId[win.rows[i].id] = true
+    var n = 0
+    for (var j = 0; j < found.length; j++) if (!byId[found[j].id]) n++
+    return n
+  }
+
+  function importExisting() {
+    if (!widget) return
+    var found = widget.importableRows()
+    if (found.length === 0) return
+
+    var byId = {}
+    for (var i = 0; i < win.rows.length; i++) byId[win.rows[i].id] = true
+
+    var copy = win.rows.slice()
+    var added = 0
+    for (var j = 0; j < found.length; j++) {
+      if (byId[found[j].id]) continue   // never overwrite one already configured
+      copy.push(found[j])
+      added++
+    }
+    copy.sort(function(a, b) { return a.id - b.id })
+    win.rows = copy
+    win.errorText = ""
+    win.conflictNote = added === 0
+      ? "Nothing to import — every workspace Hyprland has is already listed."
+      : "Imported " + added + (added === 1 ? " workspace" : " workspaces") + " from Hyprland."
+    win.revision++
+    win.autosave()
+  }
+
   function addWorkspace() {
     var maxId = 0
     for (var i = 0; i < win.rows.length; i++) maxId = Math.max(maxId, win.rows[i].id)
@@ -395,6 +445,13 @@ PanelWindow {
     win.colorEmpty = widget ? widget.colorEmpty : ""
     win.lastAppliedPins = JSON.stringify(win.pinMap())
     win.tab = "workspaces"
+    if (widget) widget.refreshBinds()
+
+    // Nothing configured yet: adopt what Hyprland already has rather than
+    // opening on an empty table. Only ever on an empty list — once there is
+    // a configuration, it is the source of truth, and a workspace Hyprland
+    // has that this does not is usually transient rather than missing.
+    if (win.rows.length === 0) Qt.callLater(win.importExisting)
     win.revision++
     win.errorText = ""
 
@@ -659,6 +716,30 @@ PanelWindow {
           }
 
           Rectangle {
+            visible: win.missingCount() > 0
+            Layout.preferredWidth: 150
+            Layout.preferredHeight: 30
+            radius: 6
+            color: "transparent"
+            border.color: win.fg
+            border.width: 1
+
+            Text {
+              anchors.centerIn: parent
+              text: "Import existing"
+              color: win.fg
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: win.importExisting()
+            }
+          }
+
+          Rectangle {
             Layout.preferredWidth: 150
             Layout.preferredHeight: 30
             radius: 6
@@ -732,6 +813,7 @@ PanelWindow {
                 else if (modelData.key === "jump") win.jumpKey = keys
                 else win.editorKey = keys
                 value = keys
+                win.noteConflict(keys)
                 win.autosave()
               }
             }
@@ -1413,7 +1495,7 @@ PanelWindow {
               fg: win.fg
               dimColor: win.dim
               lineColor: win.line
-              onCaptured: function(keys) { win.setKey(rowRoot.index, keys) }
+              onCaptured: function(keys) { win.setKey(rowRoot.index, keys); win.noteConflict("SUPER + " + keys) }
             }
 
             // Pinned apps as tags: ✕ removes, drag a tag onto another row to
@@ -1581,6 +1663,33 @@ PanelWindow {
         }
       }
 
+      Rectangle {
+        visible: win.tab === "workspaces" && win.revision >= 0 && win.missingCount() > 0
+        Layout.preferredWidth: importText.implicitWidth + 24
+        Layout.preferredHeight: 26
+        radius: 5
+        color: "transparent"
+        border.color: win.fg
+        border.width: 1
+
+        Text {
+          id: importText
+          anchors.centerIn: parent
+          text: win.missingCount() === 1
+            ? "Hyprland has 1 workspace that is not listed — import it"
+            : "Hyprland has " + win.missingCount() + " workspaces that are not listed — import them"
+          color: win.fg
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 1
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          onClicked: win.importExisting()
+        }
+      }
+
       Rectangle { Layout.fillWidth: true; height: 1; color: win.line }
 
       RowLayout {
@@ -1598,8 +1707,18 @@ PanelWindow {
         }
 
         Text {
+          text: win.conflictNote
+          visible: win.errorText === "" && win.conflictNote !== ""
+          color: Color.urgent
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body - 1
+          elide: Text.ElideRight
+          Layout.fillWidth: true
+        }
+
+        Text {
           text: "Changes save as you make them · Esc closes"
-          visible: win.errorText === ""
+          visible: win.errorText === "" && win.conflictNote === ""
           color: win.dim
           font.family: Style.font.family
           font.pixelSize: Style.font.body - 1

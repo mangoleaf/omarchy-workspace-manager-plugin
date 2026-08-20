@@ -2,6 +2,13 @@
 -- Reads ~/.config/hypr/workspaces.conf, which the plugin's editor writes.
 -- Loaded from your bindings.lua with a single dofile line; see the README.
 
+-- Defaults, used when workspaces.conf does not name a hotkey for an action.
+local hotkeys = {
+  rename = "SUPER + SHIFT + F2",
+  jump   = "SUPER + SHIFT + F3",
+  editor = "SUPER + SHIFT + F4",
+}
+
 local f = io.open(os.getenv("HOME") .. "/.config/hypr/workspaces.conf")
 if f then
   for line in f:lines() do
@@ -16,18 +23,23 @@ if f then
       o.bind("SUPER + CTRL + " .. key, "Move silently to workspace " .. base, hl.dsp.window.move({ workspace = id, follow = false }))
     else
       local action, keys = line:match("^(%a+)|(.+)$")
-      -- Unbind first so these keys can take over an Omarchy default.
-      if action == "rename" then
-        hl.unbind(keys)
-        o.bind(keys, "Rename workspace", "omarchy-shell mangoleaf.workspace-manager rename")
-      elseif action == "jump" then
-        hl.unbind(keys)
-        o.bind(keys, "Jump to workspace", "omarchy-shell shell toggle mangoleaf.workspace-manager")
-      elseif action == "editor" then
-        hl.unbind(keys)
-        o.bind(keys, "Workspace editor", "omarchy-shell mangoleaf.workspace-manager editor")
-      end
+      if action and hotkeys[action] ~= nil then hotkeys[action] = keys end
     end
   end
   f:close()
+end
+
+-- Unbind first so these can take over an Omarchy default.
+local actions = {
+  { key = "rename", label = "Rename workspace", ipc = "omarchy-shell mangoleaf.workspace-manager rename" },
+  { key = "jump",   label = "Jump to workspace", ipc = "omarchy-shell shell toggle mangoleaf.workspace-manager" },
+  { key = "editor", label = "Workspace editor", ipc = "omarchy-shell mangoleaf.workspace-manager editor" },
+}
+
+for _, a in ipairs(actions) do
+  local keys = hotkeys[a.key]
+  if keys and keys ~= "" then
+    hl.unbind(keys)
+    o.bind(keys, a.label, a.ipc)
+  end
 end

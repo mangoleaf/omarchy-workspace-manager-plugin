@@ -145,9 +145,11 @@ BarWidget {
     root.confHeader = header
     root.confFooter = footer
     root.rows = out
-    root.renameKey = settings.rename
-    root.jumpKey = settings.jump
-    root.editorKey = settings.editor
+    // Defaults matching hypr/workspace-binds.lua, so an untouched install has
+    // working hotkeys and the editor shows the ones that are actually bound.
+    root.renameKey = settings.rename === "" ? "SUPER + SHIFT + F2" : settings.rename
+    root.jumpKey = settings.jump === "" ? "SUPER + SHIFT + F3" : settings.jump
+    root.editorKey = settings.editor === "" ? "SUPER + SHIFT + F4" : settings.editor
     root.centerBar = settings.center === "true"
     root.centerMoved = settings.centermoved
     root.iconCount = settings.icons === "" ? root.defaultIconCount : parseInt(settings.icons)
@@ -371,6 +373,99 @@ BarWidget {
 
   function close() {
     if (jumpLoader.item) jumpLoader.item.close()
+  }
+
+  // Existing binds, read once when the editor opens, for two purposes:
+  // warning about a hotkey that is already taken, and importing the stock
+  // workspace keys. Hyprland reports its own generated workspace binds with
+  // no key and no keycode, so those cannot be read back — the stock scheme
+  // is reconstructed instead, below.
+  property var existingBinds: ({})
+
+  Process {
+    id: readBinds
+    command: ["hyprctl", "binds", "-j"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var map = {}
+        try {
+          var all = JSON.parse(this.text)
+          for (var i = 0; i < all.length; i++) {
+            var b = all[i]
+            if (!b.key || b.key === "") continue
+            map[b.modmask + "|" + String(b.key).toUpperCase()] = String(b.description || "a binding")
+          }
+        } catch (e) {}
+        root.existingBinds = map
+      }
+    }
+  }
+
+  function refreshBinds() { readBinds.running = true }
+
+  // "SUPER + SHIFT + F2" -> the modmask Hyprland reports, so a captured
+  // combination can be compared against what is already bound.
+  function modmaskFor(keys) {
+    var parts = String(keys).toUpperCase().split("+")
+    var mask = 0
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i].trim()
+      if (p === "SHIFT") mask += 1
+      else if (p === "CTRL" || p === "CONTROL") mask += 4
+      else if (p === "ALT") mask += 8
+      else if (p === "SUPER" || p === "META") mask += 64
+    }
+    return mask
+  }
+
+  function bareKeyOf(keys) {
+    var parts = String(keys).split("+")
+    return parts[parts.length - 1].trim().toUpperCase()
+  }
+
+  // What a combination is already bound to, or "" if it is free. Our own
+  // bindings do not count: rebinding onto one of them is not a collision.
+  function bindingConflict(keys) {
+    if (keys === "") return ""
+    var hit = root.existingBinds[root.modmaskFor(keys) + "|" + root.bareKeyOf(keys)]
+    if (!hit) return ""
+    if (hit.indexOf("workspace") !== -1 || hit === "Workspace editor") return ""
+    return hit
+  }
+
+  // Everything Hyprland already has, as editor rows. Used on a fresh install
+  // so an existing setup is adopted rather than retyped.
+  function importableRows() {
+    var out = []
+    var values = Hyprland.workspaces.values
+    for (var i = 0; i < values.length; i++) {
+      var ws = values[i]
+      if (ws.id <= 0) continue
+
+      var name = String(ws.name || "")
+      // A default Hyprland workspace is named after its own id; that is a
+      // number, not a name.
+      var prefix = name === "" ? String(ws.id) : name
+      var label = ""
+      var at = name.indexOf(":")
+      if (at !== -1) { prefix = name.substring(0, at); label = name.substring(at + 1).replace(/^ +/, "") }
+      else if (name !== String(ws.id) && name !== "") { prefix = String(ws.id); label = name }
+
+      // Omarchy binds SUPER + code:10..19 to workspaces 1..10. Those binds
+      // report no key through hyprctl, so reconstruct rather than read.
+      var key = (ws.id >= 1 && ws.id <= 10) ? "code:" + (ws.id + 9) : ""
+
+      out.push({
+        id: ws.id,
+        key: key,
+        monitor: ws.monitor ? String(ws.monitor.name || "") : "",
+        label: label,
+        apps: "",
+        prefix: prefix
+      })
+    }
+    out.sort(function(a, b) { return a.id - b.id })
+    return out
   }
 
   // Wiring Hyprland up used to mean pasting ~120 lines of Lua into two files

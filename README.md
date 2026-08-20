@@ -22,7 +22,10 @@ by hand-editing config.
 omarchy plugin add https://github.com/mangoleaf/omarchy-workspace-manager-plugin --enable
 ```
 
-The widget appears in the bar's center section. Nothing else happens yet: the
+The widget appears in the bar's center section. **Right-click it to open the
+editor** — that is where everything is configured, and where setup finishes.
+
+Nothing else happens yet: the
 plugin owns the bar widget and the editor, while Hyprland owns workspace rules
 and keybindings, so the two are wired together by the config below.
 
@@ -31,7 +34,8 @@ and keybindings, so the two are wired together by the config below.
 Every workspace definition lives in one file, `~/.config/hypr/workspaces.conf`.
 Hyprland has to read it too, which takes one line in each of two configs.
 
-**The easy way.** Right-click the widget in the bar to open the editor. Until
+**The easy way.** Right-click the widget in the bar to open the editor — every
+part of this plugin is configured from there. Until
 Hyprland is wired up it shows a setup notice with an **Add to Hyprland**
 button, which appends the two lines for you, backs both files up first, and
 reloads. Skip to [The editor](#the-editor).
@@ -78,7 +82,9 @@ an Omarchy upgrade can carry a stale one — in which case it reports
 "omarchy-shell is not running" even though it is. Hyprland always has the
 right value, so the hotkeys work regardless; a fresh login fixes the terminal.
 
-Right-click the widget to open the editor and add your first workspaces.
+Right-click the widget to open the editor. If you already had workspaces
+before installing this, it offers to bring them in — names, monitors and the
+stock `SUPER` number keys — so you are not retyping a setup you already had.
 
 ## In the bar
 
