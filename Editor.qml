@@ -408,6 +408,9 @@ PanelWindow {
   readonly property color fg: Color.foreground
   readonly property color dim: Qt.rgba(fg.r, fg.g, fg.b, 0.55)
   readonly property color line: Qt.rgba(fg.r, fg.g, fg.b, 0.18)
+  // Enough of an outline to say "this is a field" without turning the list
+  // into a grid of boxes.
+  readonly property color faint: Qt.rgba(fg.r, fg.g, fg.b, 0.10)
 
   // Destructive actions are red regardless of theme: on a green theme the
   // accent reads as approval, which is the wrong cue for deleting something.
@@ -442,6 +445,24 @@ PanelWindow {
 
   function monitorLabel(name) {
     return name === "" ? "Any monitor" : name
+  }
+
+  // Connector names are opaque, so say which panel one actually is. A name
+  // that matches no connected screen is worth calling out too — a workspace
+  // pinned to an unplugged monitor is a workspace that never appears.
+  function monitorDetail(name) {
+    if (name === "") return "Opens wherever focus is"
+    var screens = Quickshell.screens
+    for (var i = 0; i < screens.length; i++) {
+      var s = screens[i]
+      if (String(s.name) !== name) continue
+      var parts = []
+      if (String(s.manufacturer || "") !== "") parts.push(String(s.manufacturer))
+      if (String(s.model || "") !== "") parts.push(String(s.model))
+      var who = parts.join(" ")
+      return (who === "" ? name : who) + " · " + s.width + "×" + s.height
+    }
+    return name + " is not connected"
   }
 
   // Adopt whatever Hyprland already has, so someone installing this on a
@@ -1602,9 +1623,15 @@ PanelWindow {
               Layout.preferredHeight: 26
               radius: 5
               color: "transparent"
+              // The number and the name are typed, but nothing said so while
+              // they sat bare next to the bordered monitor and hotkey fields.
               border.color: prefixInput.text.indexOf("|") !== -1 ? Color.urgent
-                          : (prefixInput.activeFocus ? win.fg : "transparent")
+                          : prefixInput.activeFocus ? win.fg
+                          : prefixHover.hovered ? win.line
+                          : win.faint
               border.width: 1
+
+              HoverHandler { id: prefixHover }
 
               TextInput {
                 id: prefixInput
@@ -1629,10 +1656,13 @@ PanelWindow {
               Layout.preferredHeight: 26
               radius: 5
               color: "transparent"
-              border.color: labelInput.text.indexOf("|") !== -1
-                ? Color.urgent
-                : (labelInput.activeFocus ? win.fg : "transparent")
+              border.color: labelInput.text.indexOf("|") !== -1 ? Color.urgent
+                          : labelInput.activeFocus ? win.fg
+                          : labelHover.hovered ? win.line
+                          : win.faint
               border.width: 1
+
+              HoverHandler { id: labelHover }
 
               TextInput {
                 id: labelInput
@@ -1658,7 +1688,7 @@ PanelWindow {
               Layout.preferredHeight: 26
               radius: 5
               color: "transparent"
-              border.color: win.line
+              border.color: monHover.containsMouse ? win.line : win.faint
               border.width: 1
 
               Text {
@@ -1670,9 +1700,14 @@ PanelWindow {
               }
 
               MouseArea {
+                id: monHover
                 anchors.fill: parent
+                hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: win.cycleMonitor(rowRoot.index)
+                onEntered: win.showTextTip(true, parent,
+                  win.monitorDetail(rowRoot.row.monitor))
+                onExited: win.showTextTip(false, parent, "")
               }
             }
 
@@ -1943,6 +1978,37 @@ PanelWindow {
       RowLayout {
         Layout.fillWidth: true
         spacing: 10
+
+        // Which connector is which panel is not something anyone knows on a
+        // fresh install, and pinning workspaces is guesswork until they do.
+        Rectangle {
+          Layout.preferredWidth: idText.implicitWidth + 24
+          Layout.preferredHeight: 24
+          radius: 5
+          color: "transparent"
+          border.color: idHover.containsMouse ? Color.accent : win.line
+          border.width: 1
+
+          Text {
+            id: idText
+            anchors.centerIn: parent
+            text: "◉  Identify monitors"
+            color: idHover.containsMouse ? Color.accent : win.fg
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body - 1
+          }
+
+          MouseArea {
+            id: idHover
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: if (win.widget) win.widget.identifyMonitors()
+            onEntered: win.showTextTip(true, parent,
+              "Shows each monitor its own name for a few seconds")
+            onExited: win.showTextTip(false, parent, "")
+          }
+        }
 
         Text {
           text: win.errorText

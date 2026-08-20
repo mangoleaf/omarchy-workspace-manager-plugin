@@ -620,6 +620,18 @@ BarWidget {
     function rename(): void {
       root.openRename()
     }
+
+    function identify(): void {
+      identifyOverlay.flash()
+    }
+  }
+
+  // Lives on the widget rather than in the editor so it can be flashed from
+  // a keybind too, without the editor open.
+  Identify { id: identifyOverlay }
+
+  function identifyMonitors() {
+    identifyOverlay.flash()
   }
 
   // Bar layout lives in the shell's own config, so centering the workspaces

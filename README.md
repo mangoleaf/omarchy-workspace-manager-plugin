@@ -112,12 +112,22 @@ Right-click any workspace in the bar, or press the editor hotkey.
 |---|---|
 | Number | the number or tag shown before the name — typed, so `0A` or `L` work; blank falls back to the row's position |
 | Name | click to rename |
-| Monitor | click to cycle through your displays, or **Any monitor** to leave it unpinned |
+| Monitor | click to cycle through your displays, or **Any monitor** to leave it unpinned. Hover it to see which panel that connector is, or whether it is plugged in at all |
 | Hotkey | click, then press the combination — it is captured, not typed. Your existing bindings are suspended while it listens, so a combination that is already taken still records rather than firing. `SUPER` is implied on workspace rows |
 | Apps | pinned apps as tags. **+** opens a searchable list of installed apps, **✕** unpins. **Drag a tag onto another workspace row to move the pin there** — see below |
 
 **+ Add workspace** appends one; the trash button removes it, unless it still
 holds windows.
+
+**◉ Identify monitors** puts each display's own connector name on it in large
+type for a few seconds — the same trick desktop display settings use. Nobody
+knows which panel `DP-2` is on a fresh install, and two identical monitors
+report identical makes and models, so this is the only reliable way to tell
+them apart before pinning workspaces. It works from a keybind too:
+
+```bash
+omarchy-shell mangoleaf.workspace-manager identify
+```
 
 **Settings tab** — the three hotkeys (rename, jump, editor), how the bar
 renders workspaces, how many app icons to show beside each name, a **Colours**
