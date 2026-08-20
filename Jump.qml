@@ -180,8 +180,11 @@ PanelWindow {
       var sc2 = win.scoreText(t.title + " " + t.appClass, win.query)
       if (sc2 >= 0) out.push({
         kind: "window", key: "win:" + t.address, depth: 0,
-        label: t.title || t.appClass || "(untitled)",
-        meta: (wsLabelById[t.workspaceId] || "") + " · " + t.appClass,
+        label: t.title === "" ? (t.appClass || "(untitled)")
+                              : TreeModel.stripAppSuffix(t.title, t.appClass),
+        // Flat results lose the tree, so a window says which workspace it is
+        // on — the one thing the row no longer shows by its position.
+        meta: wsLabelById[t.workspaceId] || "",
         address: TreeModel.normalizeAddress(t.address),
         workspaceId: t.workspaceId, monitorName: t.monitorName,
         active: t.active, icon: t.icon || "", sc: sc2
@@ -223,6 +226,13 @@ PanelWindow {
   // before there is anything to focus and leave the arrows dead until the
   // user clicks. Re-assert it whenever the window becomes visible.
   onVisibleChanged: if (visible) win.grabInput()
+
+  // Where to land when the list appears: on the focused window while browsing
+  // the tree, so Enter is a no-op and the arrows start somewhere recognised;
+  // on the best match once something has been typed.
+  function pickIndex() {
+    return win.query === "" ? TreeModel.indexOfActiveWindow(win.rows) : 0
+  }
 
   function grabInput() {
     Qt.callLater(function() {
@@ -330,7 +340,7 @@ PanelWindow {
         Layout.preferredHeight: 32
         radius: 6
         color: "transparent"
-        border.color: win.fg
+        border.color: win.line
         border.width: 1
 
         TextInput {
@@ -374,87 +384,128 @@ PanelWindow {
         model: win.rows
 
         delegate: Rectangle {
+          id: rowItem
           required property var modelData
           required property int index
+
+          readonly property bool isWindow: modelData.kind === "window"
+          readonly property bool chosen: index === win.selected
+          readonly property string hotkey: isWindow ? "" : win.hotkeyFor(modelData.workspaceId)
 
           width: list.width
           height: 28
           radius: 5
-          color: index === win.selected ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.12) : "transparent"
+          color: chosen ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.10) : "transparent"
+
+          // A bar on the selected row rather than a brighter fill: the list is
+          // mostly dim text, and a fill strong enough to read as "here" washes
+          // the row's own text out.
+          Rectangle {
+            visible: parent.chosen
+            width: 2
+            radius: 1
+            color: Color.accent
+            anchors { left: parent.left; top: parent.top; bottom: parent.bottom
+                      topMargin: 4; bottomMargin: 4 }
+          }
+
+          // One continuous rule under a workspace's own windows: which rows
+          // belong to which workspace, without a second indent level or a
+          // header row to skip past.
+          Rectangle {
+            // Only in the tree. Flat results have no parent to point at, and
+            // the rule would just be a tick beside every icon.
+            visible: rowItem.isWindow && modelData.depth > 0
+            x: 19
+            width: 1
+            // Strong enough to survive the selected row's own highlight,
+            // which the rule otherwise disappears into for one row.
+            color: win.line
+            anchors { top: parent.top; bottom: parent.bottom }
+          }
 
           RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 10 + modelData.depth * 18
-            anchors.rightMargin: 10
+            anchors.leftMargin: 12 + modelData.depth * 16
+            anchors.rightMargin: 12
             spacing: 8
 
-            Image {
-              visible: modelData.kind === "window" && (modelData.icon || "") !== ""
+            // Kept even when the icon is missing, so a window whose class has
+            // no desktop entry does not hang its title out to the left of
+            // every other one.
+            Item {
+              visible: rowItem.isWindow
               Layout.preferredWidth: 16
               Layout.preferredHeight: 16
-              fillMode: Image.PreserveAspectFit
-              sourceSize.width: 32
-              sourceSize.height: 32
-              source: modelData.icon || ""
-              asynchronous: true
+
+              Image {
+                anchors.fill: parent
+                visible: source != ""
+                fillMode: Image.PreserveAspectFit
+                sourceSize.width: 32
+                sourceSize.height: 32
+                source: modelData.icon || ""
+                asynchronous: true
+              }
             }
 
             Text {
               text: modelData.label
-              color: modelData.active ? win.fg : (index === win.selected ? win.fg : win.dim)
+              color: modelData.active || chosen ? win.fg : win.dim
               font.family: Style.font.family
               font.pixelSize: Style.font.body
-              font.bold: modelData.kind !== "window" || modelData.active === true
+              font.bold: !isWindow || modelData.active === true
               elide: Text.ElideRight
-              Layout.fillWidth: false
-              Layout.maximumWidth: parent.width * 0.7
+              Layout.fillWidth: true
             }
 
-            Rectangle {
-              visible: modelData.kind === "workspace" && win.hotkeyFor(modelData.workspaceId) !== ""
-              Layout.preferredWidth: hotkeyText.implicitWidth + 14
-              Layout.preferredHeight: 17
-              radius: 8
-              color: "transparent"
-              border.color: win.line
-              border.width: 1
-
-              Text {
-                id: hotkeyText
-                anchors.centerIn: parent
-                text: modelData.kind === "workspace" ? win.hotkeyFor(modelData.workspaceId) : ""
-                color: win.dim
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body - 3
-              }
+            // Fixed, right-aligned columns. These were sized to their contents
+            // and so began at a different x on every row, which turned the
+            // list into a staircase of pills — the columns are the point, not
+            // the chrome around each value.
+            // Left-aligned: every hotkey opens with the same "SUPER + ", and
+            // aligning that shared head is what makes the column scannable —
+            // right alignment lines up the ends, which differ anyway.
+            Text {
+              visible: !isWindow
+              text: hotkey
+              color: win.dim
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body - 2
+              elide: Text.ElideRight
+              Layout.preferredWidth: 172
             }
 
-            Rectangle {
-              visible: modelData.kind === "workspace" && (modelData.monitorName || "") !== ""
-              Layout.preferredWidth: monitorText.implicitWidth + 14
-              Layout.preferredHeight: 17
-              radius: 8
-              color: Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.10)
-              border.color: win.line
-              border.width: 1
-
-              Text {
-                id: monitorText
-                anchors.centerIn: parent
-                text: modelData.monitorName || ""
-                color: win.dim
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body - 3
-              }
+            Text {
+              // Set false by the tree on every row but the first of a monitor;
+              // the flat result list has no grouping, so there it always shows.
+              visible: !isWindow && modelData.showMonitor !== false
+              text: modelData.monitorName || ""
+              color: win.dim
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body - 2
+              horizontalAlignment: Text.AlignRight
+              Layout.preferredWidth: 66
             }
 
-            Item { Layout.fillWidth: true }
+            // Holds the monitor column open on the rows that do not draw it,
+            // so the count beyond it stays in line.
+            Item {
+              visible: !isWindow && modelData.showMonitor === false
+              Layout.preferredWidth: 66
+            }
 
+            // Fixed rather than sharing the slack with the label: given the
+            // choice the label took everything and elided this to nothing,
+            // which is how a window stopped saying which workspace it is on.
             Text {
               text: modelData.meta || ""
               color: win.dim
               font.family: Style.font.family
               font.pixelSize: Style.font.body - 2
+              horizontalAlignment: Text.AlignRight
+              elide: Text.ElideRight
+              Layout.preferredWidth: 104
             }
           }
 

@@ -73,16 +73,34 @@ function workspaceLabel(workspace) {
   return name !== "" ? name : String(workspace.id)
 }
 
+// Nearly every title ends in the app that owns it — "… — Mozilla Firefox",
+// "… - Vivaldi" — which the row already says with its icon. Repeated down a
+// list it costs twenty characters of every row and pushes the part that
+// actually tells two windows apart off the end.
+function stripAppSuffix(title, appClass) {
+  var cut = Math.max(title.lastIndexOf(" — "), title.lastIndexOf(" - "), title.lastIndexOf(" | "))
+  if (cut <= 0) return title
+  var simple = function(t) { return String(t || "").toLowerCase().replace(/[^a-z0-9]/g, "") }
+  var tail = simple(title.slice(cut + 3))
+  var owner = simple(appClass)
+  if (tail === "" || owner === "") return title
+  return (tail.indexOf(owner) !== -1 || owner.indexOf(tail) !== -1) ? title.slice(0, cut) : title
+}
+
 function windowLabel(window) {
-  return window.title || window.appClass || "(untitled)"
+  var title = window.title || ""
+  if (title === "") return window.appClass || "(untitled)"
+  return stripAppSuffix(title, window.appClass || "")
 }
 
 // The right-hand column. Class first because it is the stable half -- titles
 // churn as a browser changes tabs -- then whatever is unusual about the
 // window's state. A window that is merely tiled and unfocused says nothing.
+// The right-hand column. In the tree a window already sits under its
+// workspace and beside its own icon, so its class is a third way of saying
+// what the row already says — only genuinely unusual state earns the space.
 function windowMeta(window) {
   var parts = []
-  if (window.appClass) parts.push(window.appClass)
   if (window.fullscreen) parts.push("fullscreen")
   else if (window.floating) parts.push("floating")
   if (window.urgent) parts.push("urgent")
@@ -143,7 +161,9 @@ function build(monitors, workspaces, windows) {
         kind: "workspace",
         key: "ws:" + workspace.id,
         label: workspaceLabel(workspace),
-        meta: plural(kids.length, "window"),
+        // An empty workspace saying "0 windows" is a column of zeroes down
+        // the list saying nothing; only a count worth reading is drawn.
+        meta: kids.length === 0 ? "" : plural(kids.length, "window"),
         search: [workspaceLabel(workspace), workspace.name].join(" "),
         workspaceId: workspace.id,
         monitorName: monitor.name,
@@ -244,7 +264,12 @@ function flatten(tree, collapsed) {
     for (var s = 0; s < monitor.children.length; s++) {
       var workspace = monitor.children[s]
       var lastWorkspace = lastMonitor && s === monitor.children.length - 1
-      rows.push(row(workspace, 0, lastWorkspace, true, workspace.children.length > 0))
+      var wsRow = row(workspace, 0, lastWorkspace, true, workspace.children.length > 0)
+      // Workspaces already come grouped by monitor, so naming the monitor on
+      // every row is the same word copied down a column. It is a heading:
+      // drawn once, where the group changes.
+      wsRow.showMonitor = s === 0
+      rows.push(wsRow)
       if (held[workspace.key]) continue
 
       for (var w = 0; w < workspace.children.length; w++) {
