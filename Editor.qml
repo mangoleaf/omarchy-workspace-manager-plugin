@@ -91,6 +91,7 @@ PanelWindow {
   // unbinds the old one for the three global hotkeys — but silently taking
   // a key away from something else is worse than saying so.
   property string conflictNote: ""
+  property string conflictCombo: ""
 
   // ponytail: six seconds is long enough to read a sentence and short
   // enough that it is gone before it stops being about what you just did.
@@ -126,8 +127,9 @@ PanelWindow {
     if (!widget) return
     var hit = widget.bindingConflict(keys)
     win.noteExpires = false
+    win.conflictCombo = hit === "" ? "" : keys
     win.conflictNote = hit === "" ? ""
-      : "\u201c" + keys + "\u201d is already bound to " + hit + " — this takes it over."
+      : "\u26a0  \u201c" + keys + "\u201d is already bound to " + hit + " — this takes it over."
   }
 
   function validate() {
@@ -845,6 +847,7 @@ PanelWindow {
               Layout.preferredHeight: 26
               value: modelData.key === "rename" ? win.renameKey
                    : modelData.key === "jump" ? win.jumpKey : win.editorKey
+              warn: win.conflictCombo !== "" && win.conflictCombo === value
               fg: win.fg
               dimColor: win.dim
               lineColor: win.line
@@ -1531,6 +1534,8 @@ PanelWindow {
               Layout.preferredWidth: 230
               Layout.preferredHeight: 26
               value: rowRoot.row.key
+              warn: win.conflictCombo !== "" && rowRoot.row.key !== ""
+                    && win.conflictCombo === "SUPER + " + rowRoot.row.key
               displayPrefix: "SUPER + "
               stripSuper: true
               fg: win.fg
@@ -1751,6 +1756,7 @@ PanelWindow {
           text: win.conflictNote
           visible: win.errorText === "" && win.conflictNote !== ""
           color: Color.urgent
+          font.bold: true
           font.family: Style.font.family
           font.pixelSize: Style.font.body - 1
           elide: Text.ElideRight

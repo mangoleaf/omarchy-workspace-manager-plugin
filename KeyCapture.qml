@@ -21,6 +21,11 @@ Rectangle {
   // SUPER-relative in the config, and reading "KP_Insert" gives no clue
   // what you actually press.
   property string displayPrefix: ""
+
+  // Set when this combination is already bound elsewhere. The message lives
+  // at the foot of the editor, which is a long way from the field you just
+  // used, so the field says it too.
+  property bool warn: false
   property bool stripSuper: false
   property bool capturing: false
   property color fg: Color.foreground
@@ -31,7 +36,7 @@ Rectangle {
 
   radius: 5
   color: capturing ? Qt.rgba(fg.r, fg.g, fg.b, 0.08) : "transparent"
-  border.color: capturing ? fg : lineColor
+  border.color: capturing ? fg : (warn ? Color.urgent : lineColor)
   border.width: 1
 
   function keyName(event) {
@@ -82,7 +87,8 @@ Rectangle {
     anchors.rightMargin: 8
     verticalAlignment: Text.AlignVCenter
     text: root.capturing ? "press keys… (Esc cancels)"
-        : (root.value === "" ? "click to set" : root.displayPrefix + root.value)
+        : (root.value === "" ? "click to set"
+          : (root.warn ? "\u26a0 " : "") + root.displayPrefix + root.value)
     color: root.capturing || root.value === "" ? root.dimColor : root.fg
     font.family: Style.font.family
     font.pixelSize: Style.font.body - 1
