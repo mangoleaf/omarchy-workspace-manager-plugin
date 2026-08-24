@@ -2044,7 +2044,12 @@ PanelWindow {
     visible: win.appsPickerRow >= 0
     z: 10
 
-    onVisibleChanged: if (visible) Qt.callLater(function() { appSearch.forceActiveFocus() })
+    // appQuery follows appSearch.text one way, so the box has to be cleared
+    // itself or the next open still shows the last search.
+    onVisibleChanged: {
+      if (visible) Qt.callLater(function() { appSearch.forceActiveFocus() })
+      else appSearch.text = ""
+    }
 
     MouseArea { anchors.fill: parent; onClicked: win.appsPickerRow = -1 }
 
