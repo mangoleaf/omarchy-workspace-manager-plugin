@@ -112,6 +112,28 @@ PanelWindow {
     return combo === "" ? "" : (win.conflicts[combo] || "")
   }
 
+  // A combination drives one action, so giving a hotkey to a second action
+  // takes it off the first rather than binding both to the same keys. Runs
+  // after rescanConflicts, whose note would otherwise overwrite this one.
+  function claimGlobalHotkey(action, keys) {
+    if (keys === "") return
+    var names = { rename: "Rename", jump: "Jump", editor: "Editor" }
+    var fields = ["rename", "jump", "editor"]
+    for (var i = 0; i < fields.length; i++) {
+      var other = fields[i]
+      if (other === action) continue
+      var current = other === "rename" ? win.renameKey : other === "jump" ? win.jumpKey : win.editorKey
+      if (current !== keys) continue
+      if (other === "rename") win.renameKey = ""
+      else if (other === "jump") win.jumpKey = ""
+      else win.editorKey = ""
+      // Losing a hotkey is news about this edit, not a standing description
+      // of the configuration, so it expires like the other passing remarks.
+      win.noteExpires = true
+      win.conflictNote = "Taken from the " + names[other] + " hotkey, which now has none."
+    }
+  }
+
   function rescanConflicts() {
     if (!widget) return
 
@@ -1169,8 +1191,8 @@ PanelWindow {
                 else if (modelData.key === "jump") win.jumpKey = keys
                 else win.editorKey = keys
                 value = keys
-                win.claimGlobalHotkey(modelData.key, keys)
                 win.rescanConflicts()
+                win.claimGlobalHotkey(modelData.key, keys)
                 win.autosave()
               }
             }
