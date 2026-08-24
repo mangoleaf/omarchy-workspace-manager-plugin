@@ -372,6 +372,13 @@ PanelWindow {
 
   function pickApp(cls) {
     if (win.appsPickerRow >= 0) {
+      // An app pins to one workspace at a time, so picking it again moves the
+      // tag here rather than leaving it on both rows.
+      for (var i = 0; i < win.rows.length; i++) {
+        if (i === win.appsPickerRow) continue
+        var other = win.rows[i].apps
+        if (other !== "" && other.split(",").indexOf(cls) !== -1) win.removeApp(i, cls)
+      }
       var cur = win.rows[win.appsPickerRow].apps
       var apps = cur === "" ? [] : cur.split(",")
       if (apps.indexOf(cls) === -1) apps.push(cls)
