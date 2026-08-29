@@ -1002,6 +1002,7 @@ BarWidget {
           }
 
           Text {
+            textFormat: Text.PlainText
             anchors.verticalCenter: parent.verticalCenter
             text: root.labelFor(chip.modelData)
             color: chip.tint

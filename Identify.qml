@@ -73,6 +73,7 @@ Item {
           spacing: 4
 
           Text {
+            textFormat: Text.PlainText
             anchors.horizontalCenter: parent.horizontalCenter
             text: String(badge.modelData.name)
             color: Color.accent
@@ -82,6 +83,7 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             anchors.horizontalCenter: parent.horizontalCenter
             text: badge.modelData.width + "×" + badge.modelData.height
               + (badge.who === "" ? "" : "  ·  " + badge.who)

@@ -368,6 +368,7 @@ PanelWindow {
         }
 
         Text {
+          textFormat: Text.PlainText
           anchors.fill: input
           verticalAlignment: Text.AlignVCenter
           text: "Jump to workspace or window…"
@@ -453,6 +454,7 @@ PanelWindow {
             }
 
             Text {
+              textFormat: Text.PlainText
               text: modelData.label
               color: modelData.active || chosen ? win.fg : win.dim
               font.family: Style.font.family
@@ -470,6 +472,7 @@ PanelWindow {
             // aligning that shared head is what makes the column scannable —
             // right alignment lines up the ends, which differ anyway.
             Text {
+              textFormat: Text.PlainText
               visible: !isWindow
               text: hotkey
               color: win.dim
@@ -480,6 +483,7 @@ PanelWindow {
             }
 
             Text {
+              textFormat: Text.PlainText
               // Set false by the tree on every row but the first of a monitor;
               // the flat result list has no grouping, so there it always shows.
               visible: !isWindow && modelData.showMonitor !== false
@@ -502,6 +506,7 @@ PanelWindow {
             // choice the label took everything and elided this to nothing,
             // which is how a window stopped saying which workspace it is on.
             Text {
+              textFormat: Text.PlainText
               text: modelData.meta || ""
               color: win.dim
               font.family: Style.font.family
@@ -521,6 +526,7 @@ PanelWindow {
       }
 
       Text {
+        textFormat: Text.PlainText
         text: "Nothing matches"
         visible: win.rows.length === 0
         color: win.dim

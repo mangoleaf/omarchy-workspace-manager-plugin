@@ -92,6 +92,7 @@ Rectangle {
   }
 
   Text {
+    textFormat: Text.PlainText
     anchors.fill: parent
     anchors.leftMargin: 8
     anchors.rightMargin: 8
@@ -115,6 +116,7 @@ Rectangle {
     color: root.warnColor
 
     Text {
+      textFormat: Text.PlainText
       anchors.centerIn: parent
       text: "!"
       color: "#1a1a1a"

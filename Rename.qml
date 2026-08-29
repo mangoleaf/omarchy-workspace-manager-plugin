@@ -105,6 +105,7 @@ PanelWindow {
       spacing: 10
 
       Text {
+        textFormat: Text.PlainText
         text: "Rename workspace " + win.base
         color: win.fg
         font.family: Style.font.family
@@ -137,6 +138,7 @@ PanelWindow {
         }
 
         Text {
+          textFormat: Text.PlainText
           anchors.fill: input
           verticalAlignment: Text.AlignVCenter
           text: "(blank leaves just “" + win.base + "”)"
@@ -148,6 +150,7 @@ PanelWindow {
       }
 
       Text {
+        textFormat: Text.PlainText
         text: input.text.indexOf("|") !== -1
           ? "“|” is not allowed — it separates fields in the config"
           : "Enter saves · Esc cancels"

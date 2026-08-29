@@ -791,6 +791,7 @@ PanelWindow {
     spacing: 10
 
     Text {
+      textFormat: Text.PlainText
       text: shead.title
       color: win.fg
       font.family: Style.font.family
@@ -808,6 +809,7 @@ PanelWindow {
     }
 
     Text {
+      textFormat: Text.PlainText
       text: shead.note
       visible: shead.note !== ""
       color: win.dim
@@ -829,6 +831,7 @@ PanelWindow {
     spacing: 10
 
     Text {
+      textFormat: Text.PlainText
       text: srow.label
       color: win.dim
       font.family: Style.font.family
@@ -846,6 +849,7 @@ PanelWindow {
     }
 
     Text {
+      textFormat: Text.PlainText
       text: srow.hint
       color: win.dim
       font.family: Style.font.family
@@ -870,6 +874,7 @@ PanelWindow {
     border.width: 1
 
     Text {
+      textFormat: Text.PlainText
       anchors.centerIn: parent
       text: tick.checked ? "\u2713" : ""
       color: Color.background
@@ -898,6 +903,7 @@ PanelWindow {
     border.width: 1
 
     Text {
+      textFormat: Text.PlainText
       anchors.centerIn: parent
       text: choice.caption
       color: choice.active ? win.fg : win.dim
@@ -926,6 +932,7 @@ PanelWindow {
     border.width: 1
 
     Text {
+      textFormat: Text.PlainText
       anchors.centerIn: parent
       text: step.caption
       color: step.enabled ? win.fg : win.dim
@@ -981,6 +988,7 @@ PanelWindow {
           model: [{ id: "workspaces", label: "Workspaces" }, { id: "settings", label: "Settings" }]
 
           Text {
+            textFormat: Text.PlainText
             required property var modelData
             readonly property bool selected: win.tab === modelData.id
 
@@ -1002,6 +1010,7 @@ PanelWindow {
         Item { Layout.fillWidth: true }
 
         Text {
+          textFormat: Text.PlainText
           visible: widget && widget.pluginVersion !== ""
           text: "v" + (widget ? widget.pluginVersion : "")
           color: win.dim
@@ -1023,6 +1032,7 @@ PanelWindow {
           border.width: 1
 
           Text {
+            textFormat: Text.PlainText
             anchors.centerIn: parent
             text: "i"
             color: win.showHelp ? win.fg : win.dim
@@ -1062,6 +1072,7 @@ PanelWindow {
             spacing: 2
 
             Text {
+              textFormat: Text.PlainText
               text: "Hyprland is not wired up yet"
               color: win.fg
               font.family: Style.font.family
@@ -1070,6 +1081,7 @@ PanelWindow {
             }
 
             Text {
+              textFormat: Text.PlainText
               text: "Workspaces will not switch, bind or persist until two lines are added to your monitors.lua and bindings.lua. Both files are backed up first, and the lines sit in a marked block you can delete."
               color: win.dim
               font.family: Style.font.family
@@ -1089,6 +1101,7 @@ PanelWindow {
             border.width: 1
 
             Text {
+              textFormat: Text.PlainText
               anchors.centerIn: parent
               text: "Import existing"
               color: win.fg
@@ -1110,6 +1123,7 @@ PanelWindow {
             color: win.fg
 
             Text {
+              textFormat: Text.PlainText
               anchors.centerIn: parent
               text: "Add to Hyprland"
               color: Color.background
@@ -1144,6 +1158,7 @@ PanelWindow {
           ]
 
           Text {
+            textFormat: Text.PlainText
             required property string modelData
             text: "· " + modelData
             color: win.dim
@@ -1155,6 +1170,7 @@ PanelWindow {
         }
 
         Text {
+          textFormat: Text.PlainText
           text: "· Full documentation: " + (widget ? widget.docsUrl : "")
           color: win.fg
           font.family: Style.font.family
@@ -1235,6 +1251,7 @@ PanelWindow {
           }
 
           Text {
+            textFormat: Text.PlainText
             text: "Centered in the bar"
             color: win.fg
             font.family: Style.font.family
@@ -1261,6 +1278,7 @@ PanelWindow {
           }
 
           Text {
+            textFormat: Text.PlainText
             text: win.iconCount === 0 ? "off" : String(win.iconCount)
             color: win.iconCount === 0 ? win.dim : win.fg
             font.family: Style.font.family
@@ -1326,6 +1344,7 @@ PanelWindow {
           }
 
           Text {
+            textFormat: Text.PlainText
             text: "Shown in the bar"
             color: win.fg
             font.family: Style.font.family
@@ -1451,6 +1470,7 @@ PanelWindow {
               }
 
               Text {
+                textFormat: Text.PlainText
                 anchors.fill: hexInput
                 verticalAlignment: Text.AlignVCenter
                 text: "theme"
@@ -1498,6 +1518,7 @@ PanelWindow {
           ]
 
           Text {
+            textFormat: Text.PlainText
             required property var modelData
             text: modelData.title
             color: win.dim
@@ -1590,6 +1611,7 @@ PanelWindow {
                   Drag.hotSpot.y: height / 2
 
                   Text {
+                    textFormat: Text.PlainText
                     anchors.centerIn: parent
                     text: "⠿"
                     color: handleDrag.containsMouse || handleDrag.drag.active ? win.fg : win.faint
@@ -1697,6 +1719,7 @@ PanelWindow {
                 border.width: 1
 
                 Text {
+                  textFormat: Text.PlainText
                   anchors.centerIn: parent
                   text: win.monitorLabel(rowRoot.row.monitor)
                   color: rowRoot.row.monitor === "" ? win.dim : win.fg
@@ -1794,6 +1817,7 @@ PanelWindow {
                         Drag.hotSpot.y: height / 2
 
                         Text {
+                          textFormat: Text.PlainText
                           id: chipText
                           anchors.left: parent.left
                           anchors.leftMargin: 8
@@ -1811,6 +1835,7 @@ PanelWindow {
                         }
 
                         Text {
+                          textFormat: Text.PlainText
                           id: chipClose
                           anchors.right: parent.right
                           anchors.rightMargin: 6
@@ -1870,6 +1895,7 @@ PanelWindow {
                 border.width: 1
 
                 Text {
+                  textFormat: Text.PlainText
                   anchors.centerIn: parent
                   text: "+"
                   color: addHoverArea.containsMouse ? Color.urgent : win.fg
@@ -1902,6 +1928,7 @@ PanelWindow {
                 opacity: armed ? 1 : 0.4
 
                 Text {
+                  textFormat: Text.PlainText
                   anchors.centerIn: parent
                   text: "🗑"
                   color: parent.armed && removeHover.containsMouse ? win.dangerColor : win.dim
@@ -1984,6 +2011,7 @@ PanelWindow {
         border.width: 1
 
         Text {
+          textFormat: Text.PlainText
           id: addText
           anchors.centerIn: parent
           text: "+  Add workspace"
@@ -2011,6 +2039,7 @@ PanelWindow {
         border.width: 1
 
         Text {
+          textFormat: Text.PlainText
           id: importText
           anchors.centerIn: parent
           text: win.missingCount() === 1
@@ -2045,6 +2074,7 @@ PanelWindow {
           border.width: 1
 
           Text {
+            textFormat: Text.PlainText
             id: idText
             anchors.centerIn: parent
             text: "◉  Identify monitors"
@@ -2066,6 +2096,7 @@ PanelWindow {
         }
 
         Text {
+          textFormat: Text.PlainText
           text: win.errorText
           visible: win.errorText !== ""
           color: Color.urgent
@@ -2076,6 +2107,7 @@ PanelWindow {
         }
 
         Text {
+          textFormat: Text.PlainText
           text: win.conflictNote
           visible: win.errorText === "" && win.conflictNote !== ""
           color: "#ffb020"
@@ -2087,6 +2119,7 @@ PanelWindow {
         }
 
         Text {
+          textFormat: Text.PlainText
           text: "Changes save as you make them · Esc closes"
           visible: win.errorText === "" && win.conflictNote === ""
           color: win.dim
@@ -2110,6 +2143,7 @@ PanelWindow {
       border.width: 1
 
       Text {
+        textFormat: Text.PlainText
         id: tipLabel
         anchors.centerIn: parent
         text: win.tipText
@@ -2147,6 +2181,7 @@ PanelWindow {
         spacing: 10
 
         Text {
+          textFormat: Text.PlainText
           text: "Delete this workspace?"
           color: win.fg
           font.family: Style.font.family
@@ -2155,6 +2190,7 @@ PanelWindow {
         }
 
         Text {
+          textFormat: Text.PlainText
           text: win.deleteCandidate >= 0 && win.deleteCandidate < win.rows.length
             ? "“" + (win.rows[win.deleteCandidate].label !== ""
                      ? win.rows[win.deleteCandidate].label
@@ -2177,7 +2213,7 @@ PanelWindow {
             color: "transparent"
             border.color: win.line
             border.width: 1
-            Text { anchors.centerIn: parent; text: "Cancel"; color: win.dim
+            Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: "Cancel"; color: win.dim
                    font.family: Style.font.family; font.pixelSize: Style.font.body }
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                         onClicked: win.deleteCandidate = -1 }
@@ -2186,7 +2222,7 @@ PanelWindow {
           Rectangle {
             width: 90; height: 30; radius: rSmall
             color: win.dangerColor
-            Text { anchors.centerIn: parent; text: "Delete"; color: "#1a1a1a"
+            Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: "Delete"; color: "#1a1a1a"
                    font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                         onClicked: win.confirmDelete() }
@@ -2234,6 +2270,7 @@ PanelWindow {
           spacing: 8
 
           Text {
+            textFormat: Text.PlainText
             text: "Pin an app"
             color: win.fg
             font.family: Style.font.family
@@ -2249,7 +2286,7 @@ PanelWindow {
             color: !win.pickerRunningOnly ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.15) : "transparent"
             border.color: win.line
             border.width: 1
-            Text { anchors.centerIn: parent; text: "All apps"; color: win.fg; font.family: Style.font.family; font.pixelSize: Style.font.body - 2 }
+            Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: "All apps"; color: win.fg; font.family: Style.font.family; font.pixelSize: Style.font.body - 2 }
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.pickerRunningOnly = false }
           }
 
@@ -2260,7 +2297,7 @@ PanelWindow {
             color: win.pickerRunningOnly ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.15) : "transparent"
             border.color: win.line
             border.width: 1
-            Text { anchors.centerIn: parent; text: "Running"; color: win.fg; font.family: Style.font.family; font.pixelSize: Style.font.body - 2 }
+            Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: "Running"; color: win.fg; font.family: Style.font.family; font.pixelSize: Style.font.body - 2 }
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.pickerRunningOnly = true }
           }
         }
@@ -2298,6 +2335,7 @@ PanelWindow {
           }
 
           Text {
+            textFormat: Text.PlainText
             anchors.fill: appSearch
             verticalAlignment: Text.AlignVCenter
             text: "Search apps…"
@@ -2343,6 +2381,7 @@ PanelWindow {
               }
 
               Text {
+                textFormat: Text.PlainText
                 text: modelData.cls
                 color: win.fg
                 font.family: Style.font.family
@@ -2352,6 +2391,7 @@ PanelWindow {
               }
 
               Text {
+                textFormat: Text.PlainText
                 text: modelData.name
                 color: win.dim
                 font.family: Style.font.family
@@ -2361,6 +2401,7 @@ PanelWindow {
               }
 
               Text {
+                textFormat: Text.PlainText
                 text: modelData.running ? "●" : ""
                 color: win.fg
                 font.pixelSize: Style.font.body - 4
@@ -2378,6 +2419,7 @@ PanelWindow {
         }
 
         Text {
+          textFormat: Text.PlainText
           text: win.pickerRunningOnly ? "No running windows found" : "No matching apps"
           visible: win.pickerItems.length === 0
           color: win.dim
