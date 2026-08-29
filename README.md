@@ -92,6 +92,10 @@ Each bar shows the workspaces pinned to its own monitor. A workspace left
 unpinned appears on whichever monitor it currently occupies and moves between
 bars along with it, so it is never shown twice or not at all.
 
+They are drawn in the order the editor lists them, not in workspace-id order,
+so the bar can read left to right the way you actually think about them. Drag
+a row in the editor to change it — see below.
+
 Four states are drawn differently: the focused workspace, the active workspace
 on a monitor that does not have focus, a workspace with windows, and an empty
 one. Each has a colour you can set in the editor; left blank they follow your
@@ -110,11 +114,21 @@ Right-click any workspace in the bar, or press the editor hotkey.
 
 | Column | |
 |---|---|
+| ⠿ | the drag handle — **drag it up or down to reorder the workspaces**, see below |
 | Number | the number or tag shown before the name — typed, so `0A` or `L` work; blank falls back to the row's position |
 | Name | click to rename |
 | Monitor | click to cycle through your displays, or **Any monitor** to leave it unpinned. Hover it to see which panel that connector is, or whether it is plugged in at all |
 | Hotkey | click, then press the combination — it is captured, not typed. Your existing bindings are suspended while it listens, so a combination that is already taken still records rather than firing. `SUPER` is implied on workspace rows |
 | Apps | pinned apps as tags. **+** opens a searchable list of installed apps, **✕** unpins. **Drag a tag onto another workspace row to move the pin there** — see below |
+
+**Reordering:** drag a row by the **⠿** handle at its left edge. A line shows
+the gap it will drop into, including the gap above the first row and the one
+below the last; it is not drawn while the row is over its own place, because
+that is not a move. The list order is the order each bar draws its workspaces
+in, so this is how you arrange them along the bar. A row keeps its number, its
+hotkey and its pinned apps wherever it lands — only its position changes, and
+only rows with a blank Number field renumber, since those follow the row's
+position.
 
 **+ Add workspace** appends one; the trash button removes it, unless it still
 holds windows.
@@ -224,6 +238,10 @@ id|hotkey|monitor|name|apps|number
 
 `hotkey` is `SUPER`-relative and may be empty. `monitor` empty means unpinned.
 `apps` is a comma-separated list of window-class regexes.
+
+Line order is the order the bars draw the workspaces in, so moving a line moves
+a workspace along the bar — the editor's drag handle rewrites exactly that.
+`id` is the Hyprland workspace and stays put wherever its line sits.
 
 `number` and `name` are separate fields, and the bar joins them for display.
 The number is typed, not counted, so it does not have to be a number —

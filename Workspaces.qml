@@ -282,7 +282,9 @@ BarWidget {
       var on = live && live.monitor ? String(live.monitor.name || "") : ""
       if (on === root.screenName || (on === "" && root.isFirstScreen)) ids.push(row.id)
     }
-    ids.sort(function(a, b) { return a - b })
+    // Config order, not id order: the editor's list is the running order, so
+    // dragging a row there is what moves a workspace along the bar. Sorting
+    // here would quietly undo every reorder.
     return ids
   }
 

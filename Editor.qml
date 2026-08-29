@@ -416,6 +416,24 @@ PanelWindow {
     win.touch()
   }
 
+  // Row order is the order the bars draw in, so dragging a row up or down is
+  // how a workspace moves along the bar. The row keeps its id, its number and
+  // its hotkey — only its place in the list changes.
+  //
+  // The drop lands in a gap, not on a row: gap g is the space above row g, so
+  // a list of n rows has gaps 0..n. Taking the row out first closes the gap it
+  // came from, which shifts every gap below it up by one.
+  function moveRowToGap(from, gap) {
+    if (from < 0 || from >= win.rows.length) return
+    if (gap < 0 || gap > win.rows.length) return
+    var to = gap > from ? gap - 1 : gap
+    if (to === from) return
+    var copy = win.rows.slice()
+    copy.splice(to, 0, copy.splice(from, 1)[0])
+    win.rows = copy
+    win.autosave()
+  }
+
   function moveApp(fromRow, toRow, app) {
     if (fromRow === toRow || fromRow < 0 || toRow < 0) return
     var from = win.rows[fromRow].apps.split(",").filter(function(a) { return a !== app })
@@ -1469,6 +1487,7 @@ PanelWindow {
 
         Repeater {
           model: [
+            { title: "", width: 14 },
             { title: "No.", width: 54 },
             { title: "Name", width: 200 },
             { title: "Monitor", width: 130 },
@@ -1499,348 +1518,459 @@ PanelWindow {
         color: win.line
       }
 
-      ListView {
-        id: list
+      // The list and the reorder target share one coordinate space so a row can
+      // be dropped into the gap above the first row or below the last. A target
+      // living on a row could only ever reach the gaps between rows, which left
+      // the two ends of the list unreachable.
+      Item {
+        id: listArea
         visible: win.tab === "workspaces"
         Layout.fillWidth: true
         Layout.fillHeight: true
-        Layout.preferredHeight: visible ? contentHeight : 0
-        clip: true
-        spacing: 2
-        model: win.rows
+        Layout.preferredHeight: visible ? list.contentHeight : 0
 
-        delegate: Rectangle {
-          id: rowRoot
-          required property var modelData
-          required property int index
-          width: list.width
-          height: Math.max(30, appsFlow.implicitHeight + 8)
-          radius: rSmall
-          color: rowDrop.containsDrag ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.10) : "transparent"
+        ListView {
+          id: list
+          anchors.fill: parent
+          clip: true
+          spacing: 2
+          model: win.rows
 
-          readonly property var row: modelData
-          readonly property var appList: modelData.apps === "" ? [] : modelData.apps.split(",")
+          delegate: Rectangle {
+            id: rowRoot
+            required property var modelData
+            required property int index
+            width: list.width
+            height: Math.max(30, appsFlow.implicitHeight + 8)
+            radius: rSmall
+            // A dragged app tag lands on a row, so the row lights up. A dragged
+            // row lands between two rows, so that one draws a line in the gap
+            // instead — see rowInsert below.
+            color: rowDrop.containsDrag ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.10) : "transparent"
+
+            readonly property var row: modelData
+            readonly property var appList: modelData.apps === "" ? [] : modelData.apps.split(",")
 
 
-          // Any app tag dragged from another row can be dropped anywhere on
-          // this row to re-pin it here.
-          DropArea {
-            id: rowDrop
-            anchors.fill: parent
-            keys: ["app-chip"]
-            onDropped: function(drop) {
-              win.moveApp(drop.source.fromRow, rowRoot.index, drop.source.appName)
-              drop.accept()
-            }
-          }
-
-          RowLayout {
-            anchors.fill: parent
-            spacing: 10
-
-            // The number this workspace is under the chosen numbering, next to
-            // the Hyprland id it actually maps to — the offset a count-from-0
-            // numpad user lives with, made visible instead of remembered.
-            // The number is its own field: it is often not a number at all
-            // (0A, L, SA), so it is typed rather than derived.
-            Rectangle {
-              Layout.preferredWidth: 54
-              Layout.preferredHeight: 26
-              radius: rSmall
-              color: "transparent"
-              // The number and the name are typed, but nothing said so while
-              // they sat bare next to the bordered monitor and hotkey fields.
-              border.color: prefixInput.text.indexOf("|") !== -1 ? Color.urgent
-                          : prefixInput.activeFocus ? win.fg
-                          : prefixHover.hovered ? win.line
-                          : win.faint
-              border.width: 1
-
-              HoverHandler { id: prefixHover }
-
-              TextInput {
-                id: prefixInput
-                anchors.fill: parent
-                anchors.leftMargin: 6
-                anchors.rightMargin: 6
-                verticalAlignment: TextInput.AlignVCenter
-                text: rowRoot.row.prefix !== "" ? rowRoot.row.prefix
-                    : String(win.countFromZero ? rowRoot.index : rowRoot.index + 1)
-                color: win.rowTint(rowRoot.row)
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body
-                clip: true
-                selectByMouse: true
-                onTextEdited: { win.rows[rowRoot.index].prefix = text; win.autosave() }
-                Keys.onEscapePressed: win.close()
+            // Any app tag dragged from another row can be dropped anywhere on
+            // this row to re-pin it here.
+            DropArea {
+              id: rowDrop
+              anchors.fill: parent
+              keys: ["app-chip"]
+              onDropped: function(drop) {
+                win.moveApp(drop.source.fromRow, rowRoot.index, drop.source.appName)
+                drop.accept()
               }
             }
 
-            Rectangle {
-              Layout.preferredWidth: 200
-              Layout.preferredHeight: 26
-              radius: rSmall
-              color: "transparent"
-              border.color: labelInput.text.indexOf("|") !== -1 ? Color.urgent
-                          : labelInput.activeFocus ? win.fg
-                          : labelHover.hovered ? win.line
-                          : win.faint
-              border.width: 1
+            RowLayout {
+              anchors.fill: parent
+              spacing: 10
 
-              HoverHandler { id: labelHover }
+              // Only the handle drags the row. The rest of a row is fields, and
+              // dragging one of those has to go on selecting text.
+              Item {
+                Layout.preferredWidth: 14
+                Layout.preferredHeight: 26
 
-              TextInput {
-                id: labelInput
-                anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
-                verticalAlignment: TextInput.AlignVCenter
-                text: rowRoot.row.label
-                color: win.rowTint(rowRoot.row)
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body
-                clip: true
-                selectByMouse: true
-                // Mutate in place rather than touch(): rebuilding the rows on
-                // every keystroke would destroy this field mid-word.
-                onTextEdited: { win.rows[rowRoot.index].label = text; win.autosave() }
-                Keys.onEscapePressed: win.close()
-              }
-            }
+                Rectangle {
+                  id: rowHandle
+                  readonly property int fromRow: rowRoot.index
+                  // Sized rather than anchored: an anchored item cannot be moved
+                  // by a drag, because the anchor puts it straight back.
+                  width: 14
+                  height: 26
+                  color: "transparent"
 
-            Rectangle {
-              Layout.preferredWidth: 130
-              Layout.preferredHeight: 26
-              radius: rSmall
-              color: "transparent"
-              border.color: monHover.containsMouse ? win.line : win.faint
-              border.width: 1
+                  Drag.active: handleDrag.drag.active
+                  Drag.keys: ["workspace-row"]
+                  Drag.source: rowHandle
+                  Drag.hotSpot.x: width / 2
+                  Drag.hotSpot.y: height / 2
 
-              Text {
-                anchors.centerIn: parent
-                text: win.monitorLabel(rowRoot.row.monitor)
-                color: rowRoot.row.monitor === "" ? win.dim : win.fg
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body - 1
-              }
-
-              MouseArea {
-                id: monHover
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: win.cycleMonitor(rowRoot.index)
-                onEntered: win.showTextTip(true, parent,
-                  win.monitorDetail(rowRoot.row.monitor))
-                onExited: win.showTextTip(false, parent, "")
-              }
-            }
-
-            KeyCapture {
-              widget: win.widget
-              Layout.preferredWidth: 230
-              Layout.preferredHeight: 26
-              value: rowRoot.row.key
-              warn: rowRoot.row.key !== "" && win.conflictFor("SUPER + " + rowRoot.row.key) !== ""
-              onWarnHover: function(hovered) { win.showTip(hovered, this, "SUPER + " + rowRoot.row.key) }
-              displayPrefix: "SUPER + "
-              stripSuper: true
-              fg: win.fg
-              dimColor: win.dim
-              lineColor: win.line
-              onCaptured: function(keys) { win.setKey(rowRoot.index, keys) }
-            }
-
-            // Pinned apps as tags: ✕ removes, drag a tag onto another row to
-            // move the pin there.
-            Item {
-              Layout.fillWidth: true
-              Layout.preferredHeight: Math.max(26, appsFlow.implicitHeight)
-
-              // Wrapping rather than truncating: a tag that is not drawn is a
-              // pin that cannot be removed or dragged, and hiding the control
-              // is worse than spending the height.
-              Flow {
-                id: appsFlow
-                width: parent.width
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 4
-
-                // A pin shows its whole name while there is room for it.
-                // Only once the pins together would overrun the row do they
-                // start sharing the space and eliding.
-                readonly property real needed: {
-                  var t = 0
-                  for (var i = 0; i < children.length; i++) {
-                    var w = children[i].implicitWidth
-                    if (w > 0) t += w + spacing
+                  Text {
+                    anchors.centerIn: parent
+                    text: "⠿"
+                    color: handleDrag.containsMouse || handleDrag.drag.active ? win.fg : win.faint
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
                   }
-                  return t
-                }
-                readonly property real chipCap: needed > width
-                  ? Math.floor((width - spacing) / 2)
-                  : width
 
-                Repeater {
-                  model: rowRoot.appList
-
-                  Item {
-                    id: chipSlot
-                    required property string modelData
-                    implicitWidth: chipRect.implicitWidth
-                    width: chipRect.width
-                    height: 20
-
-                    Rectangle {
-                      id: chipRect
-                      readonly property string appName: chipSlot.modelData
-                      readonly property int fromRow: rowRoot.index
-
-                      implicitWidth: chipText.implicitWidth + 30
-                      width: Math.min(implicitWidth, appsFlow.chipCap)
-                      height: 20
-                      // Outlined rather than filled, matching the tooltips —
-                      // a row of filled pills reads as one grey mass, where
-                      // outlines keep each pin separate at a glance.
-                      radius: rSmall
-                      color: Color.background
-                      border.color: Color.accent
-                      border.width: 1
-
-                      Drag.active: chipDrag.drag.active
-                      Drag.keys: ["app-chip"]
-                      Drag.source: chipRect
-                      Drag.hotSpot.x: width / 2
-                      Drag.hotSpot.y: height / 2
-
-                      Text {
-                        id: chipText
-                        anchors.left: parent.left
-                        anchors.leftMargin: 8
-                        anchors.right: parent.right
-                        anchors.rightMargin: 22
-                        anchors.verticalCenter: parent.verticalCenter
-                        // Class names are long and their tail is the
-                        // distinctive part, so drop the head rather than the
-                        // reverse-DNS prefix everything shares.
-                        elide: Text.ElideLeft
-                        text: chipRect.appName
-                        color: Color.accent
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.body - 2
-                      }
-
-                      Text {
-                        id: chipClose
-                        anchors.right: parent.right
-                        anchors.rightMargin: 6
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "✕"
-                        color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.6)
-                        font.pixelSize: Style.font.body - 3
-                      }
-
-                      // Long class names and window titles are shortened to
-                      // fit the pill, so hovering one says what it actually
-                      // is rather than leaving the user to guess at a tail.
-                      readonly property bool truncated: chipText.implicitWidth > chipText.width
-
-                      MouseArea {
-                        id: chipDrag
-                        anchors.fill: parent
-                        anchors.rightMargin: 16
-                        drag.target: chipRect
-                        preventStealing: true
-                        hoverEnabled: true
-                        cursorShape: Qt.OpenHandCursor
-                        onEntered: if (chipRect.truncated)
-                          win.showTextTip(true, chipRect, chipRect.appName)
-                        onExited: win.showTextTip(false, chipRect, "")
-                        onPressed: rowRoot.z = 10
-                        onReleased: {
-                          win.showTextTip(false, chipRect, "")
-                          rowRoot.z = 0
-                          if (chipRect.Drag.target !== null) chipRect.Drag.drop()
-                          chipRect.x = 0
-                          chipRect.y = 0
-                        }
-                      }
-
-                      MouseArea {
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        width: 16
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: win.removeApp(rowRoot.index, chipRect.appName)
-                      }
+                  MouseArea {
+                    id: handleDrag
+                    anchors.fill: parent
+                    drag.target: rowHandle
+                    // The list only moves one way, and a handle that wandered
+                    // sideways would just be a handle drawn off its row.
+                    drag.axis: Drag.YAxis
+                    preventStealing: true
+                    hoverEnabled: true
+                    cursorShape: Qt.OpenHandCursor
+                    onPressed: rowRoot.z = 10
+                    onReleased: {
+                      rowRoot.z = 0
+                      if (rowHandle.Drag.target !== null) rowHandle.Drag.drop()
+                      rowHandle.x = 0
+                      rowHandle.y = 0
                     }
                   }
                 }
-
-              }
-            }
-
-            Rectangle {
-              Layout.preferredWidth: 26
-              Layout.preferredHeight: 26
-              radius: rSmall
-              color: "transparent"
-              border.color: addHoverArea.containsMouse ? Color.urgent : win.line
-              border.width: 1
-
-              Text {
-                anchors.centerIn: parent
-                text: "+"
-                color: addHoverArea.containsMouse ? Color.urgent : win.fg
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body + 2
               }
 
-              MouseArea {
-                id: addHoverArea
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: win.openAppsPicker(rowRoot.index)
+              // The number this workspace is under the chosen numbering, next to
+              // the Hyprland id it actually maps to — the offset a count-from-0
+              // numpad user lives with, made visible instead of remembered.
+              // The number is its own field: it is often not a number at all
+              // (0A, L, SA), so it is typed rather than derived.
+              Rectangle {
+                Layout.preferredWidth: 54
+                Layout.preferredHeight: 26
+                radius: rSmall
+                color: "transparent"
+                // The number and the name are typed, but nothing said so while
+                // they sat bare next to the bordered monitor and hotkey fields.
+                border.color: prefixInput.text.indexOf("|") !== -1 ? Color.urgent
+                            : prefixInput.activeFocus ? win.fg
+                            : prefixHover.hovered ? win.line
+                            : win.faint
+                border.width: 1
+
+                HoverHandler { id: prefixHover }
+
+                TextInput {
+                  id: prefixInput
+                  anchors.fill: parent
+                  anchors.leftMargin: 6
+                  anchors.rightMargin: 6
+                  verticalAlignment: TextInput.AlignVCenter
+                  text: rowRoot.row.prefix !== "" ? rowRoot.row.prefix
+                      : String(win.countFromZero ? rowRoot.index : rowRoot.index + 1)
+                  color: win.rowTint(rowRoot.row)
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.body
+                  clip: true
+                  selectByMouse: true
+                  onTextEdited: { win.rows[rowRoot.index].prefix = text; win.autosave() }
+                  Keys.onEscapePressed: win.close()
+                }
               }
-            }
 
-            Rectangle {
-              // Deleting is refused while the workspace still holds windows,
-              // so the button says so by being inert rather than by waiting
-              // to be clicked and then complaining.
-              readonly property bool armed: win.deletable(rowRoot.row.id)
+              Rectangle {
+                Layout.preferredWidth: 200
+                Layout.preferredHeight: 26
+                radius: rSmall
+                color: "transparent"
+                border.color: labelInput.text.indexOf("|") !== -1 ? Color.urgent
+                            : labelInput.activeFocus ? win.fg
+                            : labelHover.hovered ? win.line
+                            : win.faint
+                border.width: 1
 
-              Layout.preferredWidth: 26
-              Layout.preferredHeight: 26
-              radius: rSmall
-              color: "transparent"
-              border.color: !armed ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.08)
-                          : (removeHover.containsMouse ? win.dangerColor : win.line)
-              border.width: 1
-              opacity: armed ? 1 : 0.4
+                HoverHandler { id: labelHover }
 
-              Text {
-                anchors.centerIn: parent
-                text: "🗑"
-                color: parent.armed && removeHover.containsMouse ? win.dangerColor : win.dim
-                font.pixelSize: Style.font.body - 2
+                TextInput {
+                  id: labelInput
+                  anchors.fill: parent
+                  anchors.leftMargin: 8
+                  anchors.rightMargin: 8
+                  verticalAlignment: TextInput.AlignVCenter
+                  text: rowRoot.row.label
+                  color: win.rowTint(rowRoot.row)
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.body
+                  clip: true
+                  selectByMouse: true
+                  // Mutate in place rather than touch(): rebuilding the rows on
+                  // every keystroke would destroy this field mid-word.
+                  onTextEdited: { win.rows[rowRoot.index].label = text; win.autosave() }
+                  Keys.onEscapePressed: win.close()
+                }
               }
 
-              MouseArea {
-                id: removeHover
-                anchors.fill: parent
-                hoverEnabled: true
-                enabled: parent.armed
-                cursorShape: parent.armed ? Qt.PointingHandCursor : Qt.ArrowCursor
-                onClicked: win.askDelete(rowRoot.index)
-                onEntered: if (!parent.armed) win.showTextTip(true, parent,
-                  "Move its windows elsewhere before deleting")
-                onExited: win.showTextTip(false, parent, "")
+              Rectangle {
+                Layout.preferredWidth: 130
+                Layout.preferredHeight: 26
+                radius: rSmall
+                color: "transparent"
+                border.color: monHover.containsMouse ? win.line : win.faint
+                border.width: 1
+
+                Text {
+                  anchors.centerIn: parent
+                  text: win.monitorLabel(rowRoot.row.monitor)
+                  color: rowRoot.row.monitor === "" ? win.dim : win.fg
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.body - 1
+                }
+
+                MouseArea {
+                  id: monHover
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: win.cycleMonitor(rowRoot.index)
+                  onEntered: win.showTextTip(true, parent,
+                    win.monitorDetail(rowRoot.row.monitor))
+                  onExited: win.showTextTip(false, parent, "")
+                }
+              }
+
+              KeyCapture {
+                widget: win.widget
+                Layout.preferredWidth: 230
+                Layout.preferredHeight: 26
+                value: rowRoot.row.key
+                warn: rowRoot.row.key !== "" && win.conflictFor("SUPER + " + rowRoot.row.key) !== ""
+                onWarnHover: function(hovered) { win.showTip(hovered, this, "SUPER + " + rowRoot.row.key) }
+                displayPrefix: "SUPER + "
+                stripSuper: true
+                fg: win.fg
+                dimColor: win.dim
+                lineColor: win.line
+                onCaptured: function(keys) { win.setKey(rowRoot.index, keys) }
+              }
+
+              // Pinned apps as tags: ✕ removes, drag a tag onto another row to
+              // move the pin there.
+              Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.max(26, appsFlow.implicitHeight)
+
+                // Wrapping rather than truncating: a tag that is not drawn is a
+                // pin that cannot be removed or dragged, and hiding the control
+                // is worse than spending the height.
+                Flow {
+                  id: appsFlow
+                  width: parent.width
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: 4
+
+                  // A pin shows its whole name while there is room for it.
+                  // Only once the pins together would overrun the row do they
+                  // start sharing the space and eliding.
+                  readonly property real needed: {
+                    var t = 0
+                    for (var i = 0; i < children.length; i++) {
+                      var w = children[i].implicitWidth
+                      if (w > 0) t += w + spacing
+                    }
+                    return t
+                  }
+                  readonly property real chipCap: needed > width
+                    ? Math.floor((width - spacing) / 2)
+                    : width
+
+                  Repeater {
+                    model: rowRoot.appList
+
+                    Item {
+                      id: chipSlot
+                      required property string modelData
+                      implicitWidth: chipRect.implicitWidth
+                      width: chipRect.width
+                      height: 20
+
+                      Rectangle {
+                        id: chipRect
+                        readonly property string appName: chipSlot.modelData
+                        readonly property int fromRow: rowRoot.index
+
+                        implicitWidth: chipText.implicitWidth + 30
+                        width: Math.min(implicitWidth, appsFlow.chipCap)
+                        height: 20
+                        // Outlined rather than filled, matching the tooltips —
+                        // a row of filled pills reads as one grey mass, where
+                        // outlines keep each pin separate at a glance.
+                        radius: rSmall
+                        color: Color.background
+                        border.color: Color.accent
+                        border.width: 1
+
+                        Drag.active: chipDrag.drag.active
+                        Drag.keys: ["app-chip"]
+                        Drag.source: chipRect
+                        Drag.hotSpot.x: width / 2
+                        Drag.hotSpot.y: height / 2
+
+                        Text {
+                          id: chipText
+                          anchors.left: parent.left
+                          anchors.leftMargin: 8
+                          anchors.right: parent.right
+                          anchors.rightMargin: 22
+                          anchors.verticalCenter: parent.verticalCenter
+                          // Class names are long and their tail is the
+                          // distinctive part, so drop the head rather than the
+                          // reverse-DNS prefix everything shares.
+                          elide: Text.ElideLeft
+                          text: chipRect.appName
+                          color: Color.accent
+                          font.family: Style.font.family
+                          font.pixelSize: Style.font.body - 2
+                        }
+
+                        Text {
+                          id: chipClose
+                          anchors.right: parent.right
+                          anchors.rightMargin: 6
+                          anchors.verticalCenter: parent.verticalCenter
+                          text: "✕"
+                          color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.6)
+                          font.pixelSize: Style.font.body - 3
+                        }
+
+                        // Long class names and window titles are shortened to
+                        // fit the pill, so hovering one says what it actually
+                        // is rather than leaving the user to guess at a tail.
+                        readonly property bool truncated: chipText.implicitWidth > chipText.width
+
+                        MouseArea {
+                          id: chipDrag
+                          anchors.fill: parent
+                          anchors.rightMargin: 16
+                          drag.target: chipRect
+                          preventStealing: true
+                          hoverEnabled: true
+                          cursorShape: Qt.OpenHandCursor
+                          onEntered: if (chipRect.truncated)
+                            win.showTextTip(true, chipRect, chipRect.appName)
+                          onExited: win.showTextTip(false, chipRect, "")
+                          onPressed: rowRoot.z = 10
+                          onReleased: {
+                            win.showTextTip(false, chipRect, "")
+                            rowRoot.z = 0
+                            if (chipRect.Drag.target !== null) chipRect.Drag.drop()
+                            chipRect.x = 0
+                            chipRect.y = 0
+                          }
+                        }
+
+                        MouseArea {
+                          anchors.right: parent.right
+                          anchors.top: parent.top
+                          anchors.bottom: parent.bottom
+                          width: 16
+                          cursorShape: Qt.PointingHandCursor
+                          onClicked: win.removeApp(rowRoot.index, chipRect.appName)
+                        }
+                      }
+                    }
+                  }
+
+                }
+              }
+
+              Rectangle {
+                Layout.preferredWidth: 26
+                Layout.preferredHeight: 26
+                radius: rSmall
+                color: "transparent"
+                border.color: addHoverArea.containsMouse ? Color.urgent : win.line
+                border.width: 1
+
+                Text {
+                  anchors.centerIn: parent
+                  text: "+"
+                  color: addHoverArea.containsMouse ? Color.urgent : win.fg
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.body + 2
+                }
+
+                MouseArea {
+                  id: addHoverArea
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: win.openAppsPicker(rowRoot.index)
+                }
+              }
+
+              Rectangle {
+                // Deleting is refused while the workspace still holds windows,
+                // so the button says so by being inert rather than by waiting
+                // to be clicked and then complaining.
+                readonly property bool armed: win.deletable(rowRoot.row.id)
+
+                Layout.preferredWidth: 26
+                Layout.preferredHeight: 26
+                radius: rSmall
+                color: "transparent"
+                border.color: !armed ? Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.08)
+                            : (removeHover.containsMouse ? win.dangerColor : win.line)
+                border.width: 1
+                opacity: armed ? 1 : 0.4
+
+                Text {
+                  anchors.centerIn: parent
+                  text: "🗑"
+                  color: parent.armed && removeHover.containsMouse ? win.dangerColor : win.dim
+                  font.pixelSize: Style.font.body - 2
+                }
+
+                MouseArea {
+                  id: removeHover
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  enabled: parent.armed
+                  cursorShape: parent.armed ? Qt.PointingHandCursor : Qt.ArrowCursor
+                  onClicked: win.askDelete(rowRoot.index)
+                  onEntered: if (!parent.armed) win.showTextTip(true, parent,
+                    "Move its windows elsewhere before deleting")
+                  onExited: win.showTextTip(false, parent, "")
+                }
               }
             }
           }
+        }
+
+        // A row dragged by its handle lands in a gap rather than on a row: the
+        // gap is the first one whose row-midpoint the pointer has not passed.
+        // Reading that off the whole list rather than off a row is what lets a
+        // drag past either end pick the gap there, instead of falling off the
+        // target altogether.
+        DropArea {
+          id: reorder
+          anchors.fill: parent
+          keys: ["workspace-row"]
+
+          readonly property int sourceRow: drag.source ? drag.source.fromRow : -1
+
+          readonly property int gap: {
+            var y = drag.y + list.contentY
+            for (var i = 0; i < win.rows.length; i++) {
+              var item = list.itemAtIndex(i)
+              if (item && y < item.y + item.height / 2) return i
+            }
+            return win.rows.length
+          }
+
+          // The gaps either side of the dragged row are the place it already
+          // occupies: there is no move to show and none to make.
+          readonly property bool moves: sourceRow >= 0
+            && gap !== sourceRow && gap !== sourceRow + 1
+
+          onDropped: function(drop) {
+            win.moveRowToGap(reorder.sourceRow, reorder.gap)
+            drop.accept()
+          }
+        }
+
+        // Where the row would land, drawn in the gap the list already leaves
+        // between rows rather than over either neighbour — so the drag reads as
+        // going between two rows instead of onto one.
+        Rectangle {
+          visible: reorder.containsDrag && reorder.moves
+          z: 20
+          anchors.left: parent.left
+          anchors.right: parent.right
+          height: list.spacing
+          y: {
+            if (reorder.gap <= 0) return -list.contentY - list.spacing
+            var prev = list.itemAtIndex(reorder.gap - 1)
+            return prev ? prev.y + prev.height - list.contentY : 0
+          }
+          color: Color.accent
         }
       }
 
