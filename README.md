@@ -265,7 +265,10 @@ colorunfocused|#ff9e3f
 
 `icons` is how many app icons appear beside a workspace name in the bar,
 default `3`, or `0` for none. `style` is how the bar draws workspaces —
-`plain` (default), `pill` or `underline`.
+`plain` (default), `pill`, `underline` or `dots`. `dots` draws unnamed
+workspaces as compact dots, expands the focused workspace to a rounded dash,
+and keeps named workspaces visible as their short tag. The full workspace name
+remains available from the bar tooltip.
 
 Four keys control numbering and how a number and name are joined. `base` is
 `0` or `1`, whether you count from zero or one. `number` is `true` or `false`,
