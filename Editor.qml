@@ -35,7 +35,7 @@ PanelWindow {
   property string colorOccupied: ""
   property string colorEmpty: ""
 
-  readonly property var barStyles: ["plain", "pill", "underline"]
+  readonly property var barStyles: ["plain", "pill", "underline", "dots"]
 
   readonly property var colorFields: [
     { key: "coloractive", label: "Active", hint: "The workspace you are on" },
@@ -778,7 +778,7 @@ PanelWindow {
   // control column is a fixed width so the explanations all begin at the
   // same place instead of stepping in and out with each control's size.
   readonly property int setLabelW: 118
-  readonly property int setCtrlW: 280
+  readonly property int setCtrlW: 344
   readonly property int setHintW: 640
 
   component SectionHeader: RowLayout {
@@ -1297,7 +1297,7 @@ PanelWindow {
 
         SettingRow {
           label: "Style"
-          hint: "Plain colours the text only; pill fills behind it; underline rules beneath it."
+          hint: "Plain colours text; pill fills active workspaces; underline draws a rule; dots uses dots and an active dash. Named workspaces keep their short tag."
 
           Repeater {
             model: win.barStyles

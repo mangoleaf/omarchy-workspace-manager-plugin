@@ -310,6 +310,22 @@ BarWidget {
     return root.compactLabel(live && live.name !== "" ? live.name : String(id))
   }
 
+  // Dots mode keeps ordinary numbered workspaces compact while preserving a
+  // short visible tag for named workspaces. The full composed name remains in
+  // the tooltip, so a label such as "G" can stand for "Gaming" without
+  // consuming the width of ten numbered workspaces.
+  function isNamed(id) {
+    var row = root.rowById(id)
+    return row !== null && String(row.label || "") !== ""
+  }
+
+  function compactNameFor(id) {
+    var row = root.rowById(id)
+    if (!row) return ""
+    var prefix = String(row.prefix === undefined ? "" : row.prefix)
+    return prefix !== "" ? prefix : String(row.label || "")
+  }
+
   // App icons for the windows on a workspace, one per distinct app so three
   // terminals do not eat the whole allowance.
   property var iconCache: ({})
@@ -914,7 +930,7 @@ BarWidget {
     anchors.fill: parent
     anchors.rightMargin: root.trailingGap
     columns: root.vertical ? 1 : root.workspaceIds().length
-    columnSpacing: root.vertical ? 0 : Style.space(1)
+    columnSpacing: root.vertical ? 0 : Style.space(1.5)
     rowSpacing: root.vertical ? Style.space(2) : 0
 
     Repeater {
@@ -932,7 +948,9 @@ BarWidget {
         readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData
         readonly property bool activeElsewhere: !focused && workspace !== null && workspace.active === true
 
-        readonly property var icons: root.iconsFor(modelData)
+        readonly property var icons: root.barStyle === "dots" ? [] : root.iconsFor(modelData)
+        readonly property bool named: root.isNamed(modelData)
+        readonly property string compactName: root.compactNameFor(modelData)
         readonly property color accent: root.bar ? root.bar.urgent : Color.urgent
         readonly property color baseForeground: root.bar ? root.bar.barForeground : Color.foreground
 
@@ -944,7 +962,9 @@ BarWidget {
               ? (root.colorOccupied !== "" ? root.colorOccupied : baseForeground)
               : (root.colorEmpty !== "" ? root.colorEmpty : baseForeground)
 
-        implicitWidth: body.implicitWidth + Style.spaceReal(8)
+        implicitWidth: root.barStyle === "dots" && !chip.named
+          ? (chip.focused || chip.activeElsewhere ? Style.spaceReal(26) : Style.spaceReal(14))
+          : body.implicitWidth + Style.spaceReal(8)
         implicitHeight: root.barSize
 
         // An empty workspace is dimmed only while it is taking the theme's
@@ -979,6 +999,29 @@ BarWidget {
           color: chip.tint
         }
 
+        Rectangle {
+          visible: root.barStyle === "dots" && !chip.named
+          anchors.centerIn: parent
+          width: chip.focused || chip.activeElsewhere ? Style.spaceReal(22) : Style.spaceReal(9)
+          height: Style.spaceReal(9)
+          radius: height / 2
+          color: chip.tint
+
+          Behavior on width {
+            NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+          }
+        }
+
+        Rectangle {
+          visible: root.barStyle === "dots" && chip.named
+          anchors.fill: parent
+          anchors.topMargin: Style.spaceReal(3)
+          anchors.bottomMargin: Style.spaceReal(3)
+          radius: height / 2
+          color: Qt.rgba(chip.tint.r, chip.tint.g, chip.tint.b,
+            chip.focused || chip.activeElsewhere ? 0.24 : 0.10)
+        }
+
         Row {
           id: body
           anchors.centerIn: parent
@@ -1003,8 +1046,11 @@ BarWidget {
 
           Text {
             textFormat: Text.PlainText
+            visible: root.barStyle !== "dots" || chip.named
             anchors.verticalCenter: parent.verticalCenter
-            text: root.labelFor(chip.modelData)
+            text: root.barStyle === "dots" && chip.named
+              ? chip.compactName
+              : root.labelFor(chip.modelData)
             color: chip.tint
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.body
@@ -1019,7 +1065,14 @@ BarWidget {
         MouseArea {
           anchors.fill: parent
           acceptedButtons: Qt.LeftButton | Qt.RightButton
+          hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
+          onEntered: {
+            if (root.bar) root.bar.showTooltip(chip, root.labelFor(chip.modelData))
+          }
+          onExited: {
+            if (root.bar) root.bar.hideTooltip(chip)
+          }
           onClicked: function(mouse) {
             if (mouse.button === Qt.RightButton) root.openEditor()
             else root.focusWorkspace(chip.modelData)
