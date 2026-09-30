@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls as QQC
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
@@ -777,19 +778,30 @@ PanelWindow {
   // Settings columns. Every row is name / control / explanation, and the
   // control column is a fixed width so the explanations all begin at the
   // same place instead of stepping in and out with each control's size.
-  readonly property int setLabelW: 118
-  readonly property int setCtrlW: 344
-  readonly property int setHintW: 640
+  // >>> responsive-editor-v2
+  // Size the modal from the logical output size.
+  readonly property real editorOuterMargin:
+    Math.max(10, Math.min(48, Math.min(win.width, win.height) * 0.035))
 
-  component SectionHeader: RowLayout {
+  // Narrow layouts stack label, control and hint vertically.
+  readonly property int settingsBreakpoint: 820
+  readonly property bool compactSettings: card.width < settingsBreakpoint
+
+  readonly property int setLabelW: 118
+  readonly property int setCtrlW:
+    Math.min(344, Math.max(220, Math.floor((card.width - 80) * 0.32)))
+  readonly property int setHintW:
+    Math.max(180, card.width - setLabelW - setCtrlW - 80)
+  component SectionHeader: GridLayout {
     id: shead
     property string title: ""
     property string note: ""
 
     Layout.fillWidth: true
     Layout.topMargin: 12
-    spacing: 10
-
+    columns: win.compactSettings ? 1 : 3
+    columnSpacing: 10
+    rowSpacing: win.compactSettings ? 5 : 0
     Text {
       textFormat: Text.PlainText
       text: shead.title
@@ -797,12 +809,14 @@ PanelWindow {
       font.family: Style.font.family
       font.pixelSize: Style.font.body - 1
       font.bold: true
-      Layout.preferredWidth: win.setLabelW
+      Layout.preferredWidth: win.compactSettings ? -1 : win.setLabelW
+      Layout.fillWidth: win.compactSettings
     }
 
     Rectangle {
-      Layout.preferredWidth: win.setCtrlW
-      Layout.maximumWidth: win.setCtrlW
+      Layout.preferredWidth: win.compactSettings ? -1 : win.setCtrlW
+      Layout.maximumWidth: win.compactSettings ? 100000 : win.setCtrlW
+      Layout.fillWidth: win.compactSettings
       Layout.alignment: Qt.AlignVCenter
       height: 1
       color: win.line
@@ -816,34 +830,37 @@ PanelWindow {
       font.family: Style.font.family
       font.pixelSize: Style.font.body - 2
       Layout.fillWidth: true
-      Layout.maximumWidth: win.setHintW
+      Layout.maximumWidth: win.compactSettings ? 100000 : win.setHintW
       Layout.alignment: Qt.AlignVCenter
     }
   }
 
-  component SettingRow: RowLayout {
+  component SettingRow: GridLayout {
     id: srow
     property string label: ""
     property string hint: ""
     default property alias content: slot.data
 
     Layout.fillWidth: true
-    spacing: 10
-
+    columns: win.compactSettings ? 1 : 3
+    columnSpacing: 10
+    rowSpacing: win.compactSettings ? 4 : 0
     Text {
       textFormat: Text.PlainText
       text: srow.label
       color: win.dim
       font.family: Style.font.family
       font.pixelSize: Style.font.body - 1
-      Layout.preferredWidth: win.setLabelW
+      Layout.preferredWidth: win.compactSettings ? -1 : win.setLabelW
+      Layout.fillWidth: win.compactSettings
       Layout.alignment: Qt.AlignVCenter
     }
 
     RowLayout {
       id: slot
-      Layout.preferredWidth: win.setCtrlW
-      Layout.maximumWidth: win.setCtrlW
+      Layout.preferredWidth: win.compactSettings ? -1 : win.setCtrlW
+      Layout.maximumWidth: win.compactSettings ? 100000 : win.setCtrlW
+      Layout.fillWidth: win.compactSettings
       Layout.alignment: Qt.AlignVCenter
       spacing: 6
     }
@@ -856,7 +873,7 @@ PanelWindow {
       font.pixelSize: Style.font.body - 2
       wrapMode: Text.WordWrap
       Layout.fillWidth: true
-      Layout.maximumWidth: win.setHintW
+      Layout.maximumWidth: win.compactSettings ? 100000 : win.setHintW
       Layout.alignment: Qt.AlignVCenter
     }
   }
@@ -956,8 +973,8 @@ PanelWindow {
   Rectangle {
     id: card
     anchors.centerIn: parent
-    width: 1180
-    height: Math.min(win.height - 120, content.implicitHeight + 40)
+    width: Math.min(1180, Math.max(1, win.width - win.editorOuterMargin * 2))
+    height: Math.min(900, Math.max(1, win.height - win.editorOuterMargin * 2))
     radius: rLarge
     color: Color.background
     border.color: win.line
@@ -1188,310 +1205,316 @@ PanelWindow {
 
       // Settings pane. Grouped, because ten settings in one undifferentiated
       // stack make the reader scan every line to find the one they came for.
-      ColumnLayout {
+      QQC.ScrollView {
+        id: settingsScroll
         visible: win.tab === "settings"
         Layout.fillWidth: true
-        // Wide enough apart that a two-line explanation stays attached to its
-        // own row instead of merging with the one below it.
-        spacing: 12
-
-        SectionHeader { title: "Hotkeys" }
-
-        Repeater {
-          model: [
-            { key: "rename", label: "Rename", hint: "Rename the active workspace" },
-            { key: "jump", label: "Jump", hint: "Fuzzy-find workspaces and windows" },
-            { key: "editor", label: "Editor", hint: "Open this editor" }
-          ]
-
-          SettingRow {
-            required property var modelData
-            label: modelData.label
-            hint: modelData.hint
-
-            KeyCapture {
-              widget: win.widget
-              Layout.preferredWidth: 190
-              Layout.preferredHeight: 26
-              value: modelData.key === "rename" ? win.renameKey
-                   : modelData.key === "jump" ? win.jumpKey : win.editorKey
-              warn: win.conflictFor(value) !== ""
-              onWarnHover: function(hovered) { win.showTip(hovered, this, value) }
-              fg: win.fg
-              dimColor: win.dim
-              lineColor: win.line
-              onCaptured: function(keys) {
-                if (modelData.key === "rename") win.renameKey = keys
-                else if (modelData.key === "jump") win.jumpKey = keys
-                else win.editorKey = keys
-                value = keys
-                win.rescanConflicts()
-                win.claimGlobalHotkey(modelData.key, keys)
-                win.autosave()
-              }
-            }
-
-            Item { Layout.fillWidth: true }
-          }
-        }
-
-        SectionHeader { title: "Bar" }
-
-        SettingRow {
-          label: "Position"
-          hint: (win.centerBar
-            ? "Widgets that were centered sit on the right; unticking puts them back."
-            : "Workspaces sit on the left. Ticking moves them to the center and pushes the centered widgets to the right.")
-            + (win.centerBar !== win.centerBarLoaded ? "  The bar rearranges when you close this window." : "")
-
-          Tick {
-            id: centerTick
-            checked: win.centerBar
-            onToggled: { win.centerBar = !win.centerBar; win.autosave() }
-          }
-
-          Text {
-            textFormat: Text.PlainText
-            text: "Centered in the bar"
-            color: win.fg
-            font.family: Style.font.family
-            font.pixelSize: Style.font.body - 1
-            Layout.leftMargin: 2
-            MouseArea {
-              anchors.fill: parent
-              cursorShape: Qt.PointingHandCursor
-              onClicked: centerTick.toggled()
-            }
-          }
-
-          Item { Layout.fillWidth: true }
-        }
-
-        SettingRow {
-          label: "App icons"
-          hint: "How many app icons show next to a workspace name (0 turns them off). One icon per distinct app."
-
-          Stepper {
-            caption: "\u2212"
-            enabled: win.iconCount > 0
-            onPressed: if (win.iconCount > 0) { win.iconCount--; win.autosave() }
-          }
-
-          Text {
-            textFormat: Text.PlainText
-            text: win.iconCount === 0 ? "off" : String(win.iconCount)
-            color: win.iconCount === 0 ? win.dim : win.fg
-            font.family: Style.font.family
-            font.pixelSize: Style.font.body
-            horizontalAlignment: Text.AlignHCenter
-            Layout.preferredWidth: 30
-          }
-
-          Stepper {
-            caption: "+"
-            onPressed: { win.iconCount++; win.autosave() }
-          }
-
-          Item { Layout.fillWidth: true }
-        }
-
-        SettingRow {
-          label: "Style"
-          hint: "Plain colours text; pill fills active workspaces; underline draws a rule; dots uses dots and an active dash. Named workspaces keep their short tag."
-
-          Repeater {
-            model: win.barStyles
-
-            Choice {
-              required property string modelData
-              caption: modelData
-              active: win.barStyle === modelData
-              onPicked: { win.barStyle = modelData; win.autosave() }
-            }
-          }
-
-          Item { Layout.fillWidth: true }
-        }
-
-        SectionHeader { title: "Numbering" }
-
-        SettingRow {
-          label: "Count from"
-          hint: "Hyprland has no workspace 0, so counting from 0 leaves your first workspace on id 1. This only affects the numbers the plugin generates and shows — names you have already written are left alone."
-
-          Repeater {
-            model: [{ zero: false, label: "1" }, { zero: true, label: "0" }]
-
-            Choice {
-              required property var modelData
-              caption: modelData.label
-              active: win.countFromZero === modelData.zero
-              onPicked: { win.countFromZero = modelData.zero; win.autosave() }
-            }
-          }
-
-          Item { Layout.fillWidth: true }
-        }
-
-        SettingRow {
-          label: "Number"
-          hint: "The number is a field of its own, not part of the name, so it can be hidden without editing anything. A workspace with only a number still shows it."
-
-          Tick {
-            id: numberTick
-            checked: win.showNumbers
-            onToggled: { win.showNumbers = !win.showNumbers; win.autosave() }
-          }
-
-          Text {
-            textFormat: Text.PlainText
-            text: "Shown in the bar"
-            color: win.fg
-            font.family: Style.font.family
-            font.pixelSize: Style.font.body - 1
-            Layout.leftMargin: 2
-            MouseArea {
-              anchors.fill: parent
-              cursorShape: Qt.PointingHandCursor
-              onClicked: numberTick.toggled()
-            }
-          }
-
-          Item { Layout.fillWidth: true }
-        }
-
-        SettingRow {
-          label: "Delimiter"
-          hint: "A single character between the number and the name — \u201c0" + win.delimiter + " MLStudios\u201d. Display only; it is not stored in either field."
-
-          Rectangle {
-            Layout.preferredWidth: 60
-            Layout.preferredHeight: 26
-            radius: rSmall
-            color: "transparent"
-            border.color: delimInput.text.indexOf("|") !== -1 ? Color.urgent
-                        : delimInput.activeFocus ? win.fg
-                        : delimHover.hovered ? win.line
-                        : win.faint
-            border.width: 1
-
-            HoverHandler { id: delimHover }
-
-            TextInput {
-              id: delimInput
-              maximumLength: 1
-              anchors.fill: parent
-              anchors.leftMargin: 8
-              anchors.rightMargin: 8
-              verticalAlignment: TextInput.AlignVCenter
-              horizontalAlignment: TextInput.AlignHCenter
-              text: win.delimiter
-              color: win.fg
-              font.family: Style.font.family
-              font.pixelSize: Style.font.body
-              clip: true
-              selectByMouse: true
-              onTextEdited: { win.delimiter = text; win.autosave() }
-              Keys.onEscapePressed: win.close()
-            }
-          }
-
-          Item { Layout.fillWidth: true }
-        }
-
-        SettingRow {
-          label: "Spacing"
-          hint: "Drops the space after the first colon when drawing a workspace. Display only — the name keeps its space, so renaming still works on the part after it."
-
-          Repeater {
-            model: [{ compact: false, spaced: true }, { compact: true, spaced: false }]
-
-            Choice {
-              required property var modelData
-              caption: "0" + win.delimiter + (modelData.spaced ? " " : "") + "Test"
-              active: win.compactNames === modelData.compact
-              onPicked: { win.compactNames = modelData.compact; win.autosave() }
-            }
-          }
-
-          Item { Layout.fillWidth: true }
-        }
-
-        SectionHeader {
-          title: "Colours"
-          note: "Hex like #ff9e3f, or blank to follow the theme"
-        }
-
-        Repeater {
-          model: win.colorFields
-
-          SettingRow {
-            required property var modelData
-            label: modelData.label
-            hint: modelData.hint
-
-            Rectangle {
-              Layout.preferredWidth: 24
-              Layout.preferredHeight: 24
-              radius: rSmall
-              color: win.colorPreview(modelData.key)
-              border.color: win.line
-              border.width: 1
-            }
-
-            Rectangle {
-              Layout.leftMargin: 4
-              Layout.preferredWidth: 120
-              Layout.preferredHeight: 24
-              radius: rSmall
-              color: "transparent"
-              border.color: !win.colorValid(hexInput.text) ? Color.urgent
-                          : hexInput.activeFocus ? win.fg
-                          : hexHover.hovered ? win.line
-                          : win.faint
-              border.width: 1
-
-              HoverHandler { id: hexHover }
-
-              TextInput {
-                id: hexInput
-                anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
-                verticalAlignment: TextInput.AlignVCenter
-                text: win.colorValue(modelData.key)
-                color: win.fg
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body - 2
-                clip: true
-                selectByMouse: true
-                onTextEdited: win.setColorValue(modelData.key, text)
-                Keys.onEscapePressed: win.close()
-              }
-
-              Text {
-                textFormat: Text.PlainText
-                anchors.fill: hexInput
-                verticalAlignment: Text.AlignVCenter
-                text: "theme"
-                color: Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.3)
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body - 2
-                visible: hexInput.text === ""
-              }
-            }
-
-            Item { Layout.fillWidth: true }
-          }
-        }
-      }
-
-      Item {
-        visible: win.tab === "settings"
         Layout.fillHeight: true
+        Layout.minimumHeight: 0
+        clip: true
+        QQC.ScrollBar.horizontal.policy: QQC.ScrollBar.AlwaysOff
+        QQC.ScrollBar.vertical.policy: QQC.ScrollBar.AsNeeded
+
+        ColumnLayout {
+          id: settingsColumn
+          width: settingsScroll.availableWidth
+          spacing: 12
+
+          // Wide enough apart that a two-line explanation stays attached to its
+                  // own row instead of merging with the one below it.
+          SectionHeader { title: "Hotkeys" }
+
+                  Repeater {
+                    model: [
+                      { key: "rename", label: "Rename", hint: "Rename the active workspace" },
+                      { key: "jump", label: "Jump", hint: "Fuzzy-find workspaces and windows" },
+                      { key: "editor", label: "Editor", hint: "Open this editor" }
+                    ]
+
+                    SettingRow {
+                      required property var modelData
+                      label: modelData.label
+                      hint: modelData.hint
+
+                      KeyCapture {
+                        widget: win.widget
+                        Layout.preferredWidth: 190
+                        Layout.preferredHeight: 26
+                        value: modelData.key === "rename" ? win.renameKey
+                             : modelData.key === "jump" ? win.jumpKey : win.editorKey
+                        warn: win.conflictFor(value) !== ""
+                        onWarnHover: function(hovered) { win.showTip(hovered, this, value) }
+                        fg: win.fg
+                        dimColor: win.dim
+                        lineColor: win.line
+                        onCaptured: function(keys) {
+                          if (modelData.key === "rename") win.renameKey = keys
+                          else if (modelData.key === "jump") win.jumpKey = keys
+                          else win.editorKey = keys
+                          value = keys
+                          win.rescanConflicts()
+                          win.claimGlobalHotkey(modelData.key, keys)
+                          win.autosave()
+                        }
+                      }
+
+                      Item { Layout.fillWidth: true }
+                    }
+                  }
+
+                  SectionHeader { title: "Bar" }
+
+                  SettingRow {
+                    label: "Position"
+                    hint: (win.centerBar
+                      ? "Widgets that were centered sit on the right; unticking puts them back."
+                      : "Workspaces sit on the left. Ticking moves them to the center and pushes the centered widgets to the right.")
+                      + (win.centerBar !== win.centerBarLoaded ? "  The bar rearranges when you close this window." : "")
+
+                    Tick {
+                      id: centerTick
+                      checked: win.centerBar
+                      onToggled: { win.centerBar = !win.centerBar; win.autosave() }
+                    }
+
+                    Text {
+                      textFormat: Text.PlainText
+                      text: "Centered in the bar"
+                      color: win.fg
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.body - 1
+                      Layout.leftMargin: 2
+                      MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: centerTick.toggled()
+                      }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                  }
+
+                  SettingRow {
+                    label: "App icons"
+                    hint: "How many app icons show next to a workspace name (0 turns them off). One icon per distinct app."
+
+                    Stepper {
+                      caption: "\u2212"
+                      enabled: win.iconCount > 0
+                      onPressed: if (win.iconCount > 0) { win.iconCount--; win.autosave() }
+                    }
+
+                    Text {
+                      textFormat: Text.PlainText
+                      text: win.iconCount === 0 ? "off" : String(win.iconCount)
+                      color: win.iconCount === 0 ? win.dim : win.fg
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.body
+                      horizontalAlignment: Text.AlignHCenter
+                      Layout.preferredWidth: 30
+                    }
+
+                    Stepper {
+                      caption: "+"
+                      onPressed: { win.iconCount++; win.autosave() }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                  }
+
+                  SettingRow {
+                    label: "Style"
+                    hint: "Plain colours text; pill fills active workspaces; underline draws a rule; dots uses dots and an active dash. Named workspaces keep their short tag."
+
+                    Repeater {
+                      model: win.barStyles
+
+                      Choice {
+                        required property string modelData
+                        caption: modelData
+                        active: win.barStyle === modelData
+                        onPicked: { win.barStyle = modelData; win.autosave() }
+                      }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                  }
+
+                  SectionHeader { title: "Numbering" }
+
+                  SettingRow {
+                    label: "Count from"
+                    hint: "Hyprland has no workspace 0, so counting from 0 leaves your first workspace on id 1. This only affects the numbers the plugin generates and shows — names you have already written are left alone."
+
+                    Repeater {
+                      model: [{ zero: false, label: "1" }, { zero: true, label: "0" }]
+
+                      Choice {
+                        required property var modelData
+                        caption: modelData.label
+                        active: win.countFromZero === modelData.zero
+                        onPicked: { win.countFromZero = modelData.zero; win.autosave() }
+                      }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                  }
+
+                  SettingRow {
+                    label: "Number"
+                    hint: "The number is a field of its own, not part of the name, so it can be hidden without editing anything. A workspace with only a number still shows it."
+
+                    Tick {
+                      id: numberTick
+                      checked: win.showNumbers
+                      onToggled: { win.showNumbers = !win.showNumbers; win.autosave() }
+                    }
+
+                    Text {
+                      textFormat: Text.PlainText
+                      text: "Shown in the bar"
+                      color: win.fg
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.body - 1
+                      Layout.leftMargin: 2
+                      MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: numberTick.toggled()
+                      }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                  }
+
+                  SettingRow {
+                    label: "Delimiter"
+                    hint: "A single character between the number and the name — \u201c0" + win.delimiter + " MLStudios\u201d. Display only; it is not stored in either field."
+
+                    Rectangle {
+                      Layout.preferredWidth: 60
+                      Layout.preferredHeight: 26
+                      radius: rSmall
+                      color: "transparent"
+                      border.color: delimInput.text.indexOf("|") !== -1 ? Color.urgent
+                                  : delimInput.activeFocus ? win.fg
+                                  : delimHover.hovered ? win.line
+                                  : win.faint
+                      border.width: 1
+
+                      HoverHandler { id: delimHover }
+
+                      TextInput {
+                        id: delimInput
+                        maximumLength: 1
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        verticalAlignment: TextInput.AlignVCenter
+                        horizontalAlignment: TextInput.AlignHCenter
+                        text: win.delimiter
+                        color: win.fg
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                        clip: true
+                        selectByMouse: true
+                        onTextEdited: { win.delimiter = text; win.autosave() }
+                        Keys.onEscapePressed: win.close()
+                      }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                  }
+
+                  SettingRow {
+                    label: "Spacing"
+                    hint: "Drops the space after the first colon when drawing a workspace. Display only — the name keeps its space, so renaming still works on the part after it."
+
+                    Repeater {
+                      model: [{ compact: false, spaced: true }, { compact: true, spaced: false }]
+
+                      Choice {
+                        required property var modelData
+                        caption: "0" + win.delimiter + (modelData.spaced ? " " : "") + "Test"
+                        active: win.compactNames === modelData.compact
+                        onPicked: { win.compactNames = modelData.compact; win.autosave() }
+                      }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                  }
+
+                  SectionHeader {
+                    title: "Colours"
+                    note: "Hex like #ff9e3f, or blank to follow the theme"
+                  }
+
+                  Repeater {
+                    model: win.colorFields
+
+                    SettingRow {
+                      required property var modelData
+                      label: modelData.label
+                      hint: modelData.hint
+
+                      Rectangle {
+                        Layout.preferredWidth: 24
+                        Layout.preferredHeight: 24
+                        radius: rSmall
+                        color: win.colorPreview(modelData.key)
+                        border.color: win.line
+                        border.width: 1
+                      }
+
+                      Rectangle {
+                        Layout.leftMargin: 4
+                        Layout.preferredWidth: 120
+                        Layout.preferredHeight: 24
+                        radius: rSmall
+                        color: "transparent"
+                        border.color: !win.colorValid(hexInput.text) ? Color.urgent
+                                    : hexInput.activeFocus ? win.fg
+                                    : hexHover.hovered ? win.line
+                                    : win.faint
+                        border.width: 1
+
+                        HoverHandler { id: hexHover }
+
+                        TextInput {
+                          id: hexInput
+                          anchors.fill: parent
+                          anchors.leftMargin: 8
+                          anchors.rightMargin: 8
+                          verticalAlignment: TextInput.AlignVCenter
+                          text: win.colorValue(modelData.key)
+                          color: win.fg
+                          font.family: Style.font.family
+                          font.pixelSize: Style.font.body - 2
+                          clip: true
+                          selectByMouse: true
+                          onTextEdited: win.setColorValue(modelData.key, text)
+                          Keys.onEscapePressed: win.close()
+                        }
+
+                        Text {
+                          textFormat: Text.PlainText
+                          anchors.fill: hexInput
+                          verticalAlignment: Text.AlignVCenter
+                          text: "theme"
+                          color: Qt.rgba(win.fg.r, win.fg.g, win.fg.b, 0.3)
+                          font.family: Style.font.family
+                          font.pixelSize: Style.font.body - 2
+                          visible: hexInput.text === ""
+                        }
+                      }
+
+                      Item { Layout.fillWidth: true }
+                    }
+                  }
+        }
       }
 
-      Rectangle {
+Rectangle {
         visible: win.tab === "workspaces"
         Layout.fillWidth: true
         height: 1
@@ -2250,8 +2273,8 @@ PanelWindow {
 
     Rectangle {
       anchors.centerIn: parent
-      width: 460
-      height: Math.min(pickerContent.implicitHeight + 28, win.height - 200)
+      width: Math.min(460, Math.max(1, win.width - win.editorOuterMargin * 2))
+      height: Math.min(pickerContent.implicitHeight + 28, Math.max(1, win.height - win.editorOuterMargin * 2))
       radius: rLarge
       color: Color.background
       border.color: win.fg
