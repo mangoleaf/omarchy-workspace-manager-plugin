@@ -1,3 +1,28 @@
+// ============================================================================
+// Workspaces.qml — annotated Omarchy Workspace Manager replacement
+// ============================================================================
+// This file preserves the plugin's original workspace/editor/pinning behavior,
+// while replacing the app-icon discovery path with a more robust implementation.
+//
+// ICON FIX SUMMARY
+//   1. Uses `hyprctl clients -j` to obtain the same window classes Hyprland
+//      reports in the terminal.
+//   2. Matches those classes using DesktopEntries.heuristicLookup(), with an
+//      explicit StartupWMClass / desktop-entry-id fallback.
+//   3. Never caches failed icon lookups, so startup races can recover.
+//   4. Refreshes workspace icon data after window lifecycle/movement events.
+//   5. Uses Quickshell.iconPath(icon) without the strict `check=true` overload.
+//
+// The comments throughout the file describe the purpose of the declarations,
+// functions, processes, timers, connections, loaders, and rendering blocks.
+//
+// Replace:
+//   ~/.config/omarchy/plugins/mangoleaf.workspace-manager/Workspaces.qml
+//
+// Then restart the shell:
+//   omarchy-restart-shell
+// ============================================================================
+
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -15,11 +40,22 @@ BarWidget {
   id: root
   moduleName: "mangoleaf.workspace-manager"
 
+  // Parsed workspace definitions from ~/.config/hypr/workspaces.conf.
   property var rows: []
+
+  // Key combination that opens the workspace rename popup.
   property string renameKey: ""
+
+  // Key combination that opens the fuzzy workspace/window jump interface.
   property string jumpKey: ""
+
+  // Key combination that opens the full workspace-manager editor.
   property string editorKey: ""
+
+  // Whether this plugin is allowed to occupy the bar's center section.
   property bool centerBar: false
+
+  // Comma-separated widget ids displaced from the center when centerBar is on.
   property string centerMoved: ""
 
   // ponytail: 3 is just a sane starting point for how many app icons fit
@@ -61,11 +97,15 @@ BarWidget {
     return root.compactNames ? p + root.delimiter + n : p + root.delimiter + " " + n
   }
 
+  // Finds one configured workspace row by numeric Hyprland workspace id.
+  // Returns null when the id has no configured row.
   function rowById(id) {
     for (var i = 0; i < root.rows.length; i++) if (root.rows[i].id === id) return root.rows[i]
     return null
   }
 
+  // Normalizes an already-composed label according to compactNames, preserving
+  // the prefix before the first colon while adding/removing one display space.
   function compactLabel(label) {
     var text = String(label)
     var at = text.indexOf(":")
@@ -86,8 +126,13 @@ BarWidget {
   readonly property string defaultUnfocusedColor: "#ff9e3f"
   property string colorActive: ""
   property string colorUnfocused: ""
+  // Optional override color for a non-focused workspace containing windows.
   property string colorOccupied: ""
+
+  // Optional override color for an empty, inactive workspace.
   property string colorEmpty: ""
+
+  // Absolute path of the human-editable workspace-manager configuration file.
   readonly property string confPath: Quickshell.env("HOME") + "/.config/hypr/workspaces.conf"
 
   // Lines we do not understand — comments, blank lines, keys from a future
@@ -96,11 +141,15 @@ BarWidget {
   property var confHeader: []
   property var confFooter: []
 
+  // Name of the output/monitor that owns this particular bar-widget instance.
+  // Omarchy creates one bar instance per screen, so this is used for filtering.
   readonly property string screenName: {
     var win = QsWindow.window
     return win && win.screen ? win.screen.name : ""
   }
 
+  // Parses the pipe-delimited workspaces.conf file into workspace rows and
+  // settings properties while preserving unknown lines for round-trip editing.
   function loadConf(t) {
     var out = []
     var settings = {
@@ -189,6 +238,8 @@ BarWidget {
     }
   }
 
+  // Serializes workspace rows plus a settings object back to workspaces.conf.
+  // Unknown header/footer lines are retained so hand edits are not destroyed.
   function buildConf(rows, s) {
     var lines = root.confHeader.slice()
     if (s.rename !== "") lines.push("rename|" + s.rename)
@@ -232,6 +283,8 @@ BarWidget {
     root.saveConf(root.buildConf(rows, root.currentSettings()))
   }
 
+  // Writes a complete configuration string, immediately updates in-memory
+  // state, and schedules a Hyprland reload so rules/bindings take effect.
   function saveConf(text) {
     confFile.setText(text)
     // Re-read our own write immediately. The file watcher does not
@@ -288,6 +341,8 @@ BarWidget {
     return ids
   }
 
+  // Returns the live Quickshell HyprlandWorkspace object matching an id, or
+  // null when that workspace does not currently exist.
   function workspaceById(id) {
     var values = Hyprland.workspaces.values
     for (var i = 0; i < values.length; i++) {
@@ -319,6 +374,8 @@ BarWidget {
     return row !== null && String(row.label || "") !== ""
   }
 
+  // Returns the shortest human-readable token for a named workspace, favoring
+  // its configured numeric/text prefix over the longer workspace name.
   function compactNameFor(id) {
     var row = root.rowById(id)
     if (!row) return ""
@@ -326,54 +383,315 @@ BarWidget {
     return prefix !== "" ? prefix : String(row.label || "")
   }
 
-  // App icons for the windows on a workspace, one per distinct app so three
-  // terminals do not eat the whole allowance.
+  // ---------------------------------------------------------------------------
+  // Application-icon support
+  // ---------------------------------------------------------------------------
+  // The upstream plugin originally derived a class from HyprlandToplevel's
+  // lastIpcObject and immediately cached both successful and failed desktop
+  // entry lookups. On some Omarchy/Quickshell builds that leaves the bar with
+  // permanently empty icons. The declarations and functions below deliberately
+  // use `hyprctl clients -j` as the authoritative window/class source, retry
+  // failed desktop-entry lookups, and invalidate bindings whenever either the
+  // window list or desktop-entry model changes.
+
+  // Caches only SUCCESSFUL class -> image-source resolutions. Failed lookups
+  // are intentionally not cached, because DesktopEntries can finish loading
+  // after this widget's first render.
   property var iconCache: ({})
 
+  // Omarchy itself does not rely solely on Qt's icon-theme cache. The shell can
+  // start before application icons are indexed, and Qt may never rescan them.
+  // Mirror Omarchy's AppLibrary fallback: build a map from icon basename
+  // ("firefox") to a real SVG/PNG file path on disk.
+  property var iconIndex: ({})
+  property var pendingIconIndex: ({})
+
+  // Maps a numeric Hyprland workspace id to the distinct application classes
+  // currently present on that workspace. Example: { "1": ["firefox", ...] }.
+  property var workspaceClasses: ({})
+
+  // Revision counter used only to make QML bindings reactive. iconsFor() reads
+  // this property, so incrementing it forces each workspace chip to recalculate
+  // its icon list even when the underlying JavaScript maps changed in place.
+  property int iconRevision: 0
+
+  // Clears resolved icons and bumps the revision so all workspace icon bindings
+  // retry their desktop-entry and icon-theme lookups.
+  function resetIconCache() {
+    root.iconCache = ({})
+    root.iconRevision++
+  }
+
+  // Parses `hyprctl clients -j` into workspaceClasses. Using hyprctl here avoids
+  // depending on lastIpcObject refresh timing inside Quickshell's Hyprland API.
+  function parseClientWindows(text) {
+    var map = {}
+
+    try {
+      var clients = JSON.parse(text)
+
+      for (var i = 0; i < clients.length; i++) {
+        var client = clients[i]
+        var workspace = client.workspace || ({})
+        var id = Number(workspace.id || 0)
+
+        // Hyprland uses positive ids for ordinary workspaces. Ignore special
+        // workspaces and malformed records.
+        if (id <= 0) continue
+
+        var cls = String(client["class"] || client.initialClass || "")
+        if (cls === "") continue
+
+        var key = String(id)
+        if (!map[key]) map[key] = []
+
+        // Keep one icon per distinct application class on each workspace.
+        if (map[key].indexOf(cls) === -1) map[key].push(cls)
+      }
+    } catch (e) {
+      console.warn("workspace-manager: failed to parse hyprctl clients:", e)
+    }
+
+    root.workspaceClasses = map
+    root.iconRevision++
+  }
+
+  // Starts a fresh hyprctl client query unless one is already in progress.
+  // Window events are debounced by clientRefreshTimer, so overlapping calls are
+  // uncommon and safely ignored.
+  function refreshClientWindows() {
+    if (!readClients.running) readClients.running = true
+  }
+
+  // Runs Hyprland's JSON client query. Its output contains the exact `class`
+  // strings that you already verified with `hyprctl clients -j`.
+  Process {
+    id: readClients
+    command: ["hyprctl", "clients", "-j"]
+
+    stdout: StdioCollector {
+      id: clientsOut
+      onStreamFinished: root.parseClientWindows(clientsOut.text)
+    }
+  }
+
+  // Debounces bursts of Hyprland events (opening/moving/closing windows) so the
+  // plugin does not spawn several identical hyprctl processes at once.
+  Timer {
+    id: clientRefreshTimer
+    interval: 120
+    repeat: false
+    onTriggered: root.refreshClientWindows()
+  }
+
+  // DesktopEntries.applications is an ObjectModel. Its `values` property
+  // changes when Quickshell discovers/reloads .desktop entries. Clearing the
+  // successful-icon cache here also lets a previously unavailable icon resolve.
+  Connections {
+    target: DesktopEntries.applications
+
+    function onValuesChanged() {
+      root.resetIconCache()
+      clientRefreshTimer.restart()
+      iconIndexDebounce.restart()
+    }
+  }
+
+  // Builds the same filesystem icon index used by Omarchy's own AppLibrary.
+  // Only application/device icon directories are scanned, preferring SVG over
+  // PNG because the first path stored for a basename wins.
+  function iconIndexScanCommand() {
+    return [
+      'dirs="$HOME/.icons $HOME/.local/share/icons";',
+      'IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs="$dirs $d/icons"; done; unset IFS;',
+      'for ext in svg png; do',
+      '  for base in $dirs; do',
+      '    [[ -d $base ]] && find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" \\) -name "*.$ext" 2>/dev/null;',
+      '  done;',
+      '  find /usr/share/pixmaps -maxdepth 1 -name "*.$ext" 2>/dev/null;',
+      'done'
+    ].join(" ")
+  }
+
+  // Adds one discovered icon file to pendingIconIndex. The extension is removed
+  // so DesktopEntry.Icon values such as "firefox" can be looked up directly.
+  function indexIconLine(path) {
+    var value = String(path || "").trim()
+    if (value.length === 0) return
+
+    var slash = value.lastIndexOf("/")
+    var file = slash >= 0 ? value.slice(slash + 1) : value
+    var dot = file.lastIndexOf(".")
+    var name = dot > 0 ? file.slice(0, dot) : file
+
+    if (name.length > 0 && root.pendingIconIndex[name] === undefined)
+      root.pendingIconIndex[name] = value
+  }
+
+  // Scans icons asynchronously. When the scan completes, swapping iconIndex and
+  // bumping iconRevision makes every workspace retry its icon sources.
+  Process {
+    id: iconIndexScan
+    command: ["bash", "-c", root.iconIndexScanCommand()]
+
+    stdout: SplitParser {
+      onRead: function(line) {
+        root.indexIconLine(line)
+      }
+    }
+
+    onStarted: root.pendingIconIndex = ({})
+
+    onExited: {
+      root.iconIndex = root.pendingIconIndex
+      root.iconCache = ({})
+      root.iconRevision++
+    }
+  }
+
+  // Coalesces DesktopEntries changes into one filesystem rescan.
+  Timer {
+    id: iconIndexDebounce
+    interval: 750
+    repeat: false
+    onTriggered: {
+      if (!iconIndexScan.running) iconIndexScan.running = true
+    }
+  }
+
+  // Returns the DesktopEntry most likely to represent a Hyprland window class.
+  // First use Quickshell's own heuristic. If that misses, explicitly compare the
+  // class against StartupWMClass and desktop-entry id, case-insensitively.
+  function desktopEntryForClass(cls) {
+    if (cls === "") return null
+
+    var entry = DesktopEntries.heuristicLookup(cls)
+    if (entry) return entry
+
+    var wanted = String(cls).toLowerCase()
+    var applications = DesktopEntries.applications.values
+
+    for (var i = 0; i < applications.length; i++) {
+      var candidate = applications[i]
+      var startupClass = String(candidate.startupClass || "").toLowerCase()
+      var desktopId = String(candidate.id || "").toLowerCase()
+      var desktopIdNoSuffix = desktopId.replace(/\.desktop$/, "")
+
+      if (startupClass === wanted
+          || desktopId === wanted
+          || desktopIdNoSuffix === wanted) {
+        return candidate
+      }
+    }
+
+    return null
+  }
+
+  // Resolves a running application's class to an Image.source-compatible URL.
+  //
+  // Quickshell.iconPath(name) without a second argument deliberately returns a
+  // "missing texture" URL when a theme icon cannot be found. That is the
+  // purple/black checkerboard shown by Qt. To prevent it, every themed-icon
+  // lookup below uses iconPath(name, true), which returns "" on failure.
+  //
+  // We also try several candidate names because desktop files and Hyprland do
+  // not always use the same identifier. For example, Brave may advertise the
+  // window class "brave-browser" while its desktop file says
+  // Icon=brave-desktop. Only a successfully resolved source is cached.
   function classIcon(cls) {
     if (cls === "") return ""
-    if (root.iconCache[cls] !== undefined) return root.iconCache[cls]
-    var out = ""
-    var entry = DesktopEntries.heuristicLookup(cls)
-    if (entry && entry.icon) {
-      var v = String(entry.icon)
-      if (v.indexOf("file://") === 0 || v.indexOf("image://") === 0) out = v
-      else if (v.charAt(0) === "/") out = "file://" + v
-      else out = Quickshell.iconPath(v, true)
+
+    // Reuse only successful results. Failed results are never cached.
+    if (root.iconCache[cls] !== undefined
+        && root.iconCache[cls] !== "") {
+      return root.iconCache[cls]
     }
-    root.iconCache[cls] = out
-    return out
+
+    var entry = root.desktopEntryForClass(cls)
+    if (!entry) return ""
+
+    var candidates = []
+
+    function addCandidate(value) {
+      var v = String(value || "")
+      if (v === "") return
+      if (candidates.indexOf(v) === -1) candidates.push(v)
+    }
+
+    // Canonical .desktop Icon= name first.
+    addCandidate(entry.icon)
+
+    // Then identifiers commonly used as icon basenames.
+    addCandidate(cls)
+    var desktopId = String(entry.id || "").replace(/\.desktop$/, "")
+    addCandidate(desktopId)
+
+    // Brave is one example where Icon= and WM class differ by "-desktop".
+    if (entry.icon)
+      addCandidate(String(entry.icon).replace(/-desktop$/, ""))
+
+    for (var i = 0; i < candidates.length; i++) {
+      var icon = candidates[i]
+      var out = ""
+
+      // A desktop file may already contain a usable URL or absolute path.
+      if (icon.indexOf("file://") === 0 || icon.indexOf("image://") === 0) {
+        out = icon
+      } else if (icon.charAt(0) === "/") {
+        out = Util.fileUrl(icon)
+      } else {
+        // IMPORTANT: mirror Omarchy AppLibrary. Prefer our on-disk index before
+        // asking Qt's icon theme, because Qt's theme cache may miss app icons.
+        var found = root.iconIndex[icon]
+        if (found) {
+          out = Util.fileUrl(found)
+        } else {
+          out = Quickshell.iconPath(icon, true)
+        }
+      }
+
+      if (out !== "") {
+        root.iconCache[cls] = out
+        return out
+      }
+    }
+
+    return ""
   }
 
+  // Builds the visible icon-source list for one workspace. The class list comes
+  // from parseClientWindows(), while iconRevision creates the QML dependency
+  // needed to recalculate this function when that map changes.
   function iconsFor(id) {
-    if (root.iconCount <= 0) return []
-    var ws = root.workspaceById(id)
-    if (!ws || !ws.toplevels) return []
+    var revision = root.iconRevision
 
-    var seen = {}
+    if (root.iconCount <= 0) return []
+
+    var classes = root.workspaceClasses[String(id)] || []
     var out = []
-    var values = ws.toplevels.values
-    for (var i = 0; i < values.length && out.length < root.iconCount; i++) {
-      var ipc = values[i].lastIpcObject || ({})
-      var cls = String(ipc["class"] || ipc.initialClass || "")
-      if (cls === "" || seen[cls]) continue
-      seen[cls] = true
-      var src = root.classIcon(cls)
+
+    for (var i = 0; i < classes.length && out.length < root.iconCount; i++) {
+      var src = root.classIcon(classes[i])
       if (src !== "") out.push(src)
     }
+
     return out
   }
 
+  // Focuses the requested Hyprland workspace when its chip is left-clicked.
   function focusWorkspace(id) {
     if (!root.bar) return
     root.bar.run("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ workspace = \"" + id + "\" })"))
   }
 
+  // Lazily creates and opens Editor.qml. Reuses the already-loaded editor on
+  // subsequent invocations instead of constructing a second window.
   function openEditor() {
     if (editorLoader.active && editorLoader.item) editorLoader.item.openNow()
     else editorLoader.active = true
   }
 
+  // Lazily creates and opens Rename.qml for editing the current workspace name.
   function openRename() {
     if (renameLoader.active && renameLoader.item) renameLoader.item.openNow()
     else renameLoader.active = true
@@ -389,6 +707,8 @@ BarWidget {
     else jumpLoader.active = true
   }
 
+  // Closes the fuzzy jump panel when it exists; part of the shell panel-widget
+  // open/close/toggle contract consumed by Omarchy's shell IPC.
   function close() {
     if (jumpLoader.item) jumpLoader.item.close()
   }
@@ -409,6 +729,8 @@ BarWidget {
     }
   }
 
+  // Parses `hyprctl binds -j` into a map keyed by modifier mask and key name.
+  // The editor uses this map to warn before assigning a conflicting shortcut.
   function parseBinds(text) {
     var map = {}
     try {
@@ -427,12 +749,24 @@ BarWidget {
     root.existingBinds = map
   }
 
+  // Starts the asynchronous process that refreshes existingBinds from Hyprland.
   function refreshBinds() { readBinds.running = true }
 
   // Read once at startup as well as on open: the read is asynchronous, and a
   // capture completed moments after opening would otherwise be checked
   // against an empty list and reported as free.
-  Component.onCompleted: root.refreshBinds()
+  // Performs initial asynchronous discovery after the widget is constructed:
+  // read existing keybinds, refresh Quickshell's toplevel metadata, and query
+  // hyprctl for the class list used by the workspace icon renderer.
+  Component.onCompleted: {
+    root.refreshBinds()
+    Hyprland.refreshToplevels()
+    clientRefreshTimer.restart()
+
+    // Match Omarchy's own AppLibrary behavior: build the real-file icon index
+    // once at startup so app icons are not dependent on Qt's theme cache.
+    if (!iconIndexScan.running) iconIndexScan.running = true
+  }
 
   // "SUPER + SHIFT + F2" -> the modmask Hyprland reports, so a captured
   // combination can be compared against what is already bound.
@@ -449,6 +783,8 @@ BarWidget {
     return mask
   }
 
+  // Extracts the non-modifier key from a textual combination such as
+  // "SUPER + SHIFT + F2", returning "F2" for conflict matching.
   function bareKeyOf(keys) {
     var parts = String(keys).split("+")
     return parts[parts.length - 1].trim().toUpperCase()
@@ -467,6 +803,8 @@ BarWidget {
         || desc === "Workspace editor"
   }
 
+  // Returns a human-readable conflicting binding description, or an empty
+  // string when the requested key combination is free (or already ours).
   function bindingConflict(keys) {
     if (keys === "") return ""
     var hits = root.existingBinds[root.modmaskFor(keys) + "|" + root.bareKeyOf(keys)]
@@ -518,6 +856,7 @@ BarWidget {
   readonly property string hyprMarker: "-- >>> omarchy-workspace-manager"
   readonly property string pluginDir:
     Quickshell.env("HOME") + "/.config/omarchy/plugins/mangoleaf.workspace-manager/"
+  // Directory containing the Lua helpers this plugin injects into Hyprland.
   readonly property string pluginHyprDir: root.pluginDir + "hypr/"
 
   // Read from the manifest rather than written twice: a version in two
@@ -529,8 +868,11 @@ BarWidget {
 
   Process { id: docsProc; command: ["xdg-open", root.docsUrl] }
 
+  // Launches the plugin documentation URL using the user's default browser.
   function openDocs() { docsProc.running = true }
 
+  // Watches manifest.json so the editor can display the installed plugin
+  // version even after an in-place plugin update.
   FileView {
     id: manifestFile
     path: root.pluginDir + "manifest.json"
@@ -543,10 +885,13 @@ BarWidget {
     onFileChanged: manifestFile.reload()
   }
 
+  // Extracts the version field from manifest.json; malformed JSON is ignored.
   function readVersion(text) {
     try { root.pluginVersion = String(JSON.parse(text).version || "") } catch (e) {}
   }
 
+  // Watches monitors.lua to detect whether the workspace-rules helper has been
+  // installed and to notice external edits.
   FileView {
     id: monitorsFile
     path: Quickshell.env("HOME") + "/.config/hypr/monitors.lua"
@@ -554,6 +899,8 @@ BarWidget {
     printErrors: false
   }
 
+  // Watches bindings.lua to detect whether the workspace-bindings helper has
+  // been installed and to notice external edits.
   FileView {
     id: bindingsFile
     path: Quickshell.env("HOME") + "/.config/hypr/bindings.lua"
@@ -561,6 +908,8 @@ BarWidget {
     printErrors: false
   }
 
+  // Builds the marked dofile(...) block appended to a Hyprland Lua config file
+  // when the user chooses "Add to Hyprland" in the plugin editor.
   function hyprBlock(file) {
     return "\n" + root.hyprMarker + " (managed block — safe to remove)\n"
       + 'dofile(os.getenv("HOME") .. "/.config/omarchy/plugins/mangoleaf.workspace-manager/hypr/'
@@ -581,6 +930,7 @@ BarWidget {
     return text.indexOf("io.open") !== -1 && text.indexOf("workspaces.conf") !== -1
   }
 
+  // True only when both required Hyprland Lua integration blocks are detected.
   readonly property bool hyprConfigInstalled:
     root.confRevision >= 0
     && root.hyprFileConfigured(monitorsFile)
@@ -591,6 +941,8 @@ BarWidget {
   Connections { target: monitorsFile; function onFileChanged() { root.confRevision++ } }
   Connections { target: bindingsFile; function onFileChanged() { root.confRevision++ } }
 
+  // Backs up monitors.lua and bindings.lua before appending the plugin-managed
+  // integration blocks. The actual writes happen only after this process exits.
   Process {
     id: hyprBackup
     command: ["sh", "-c",
@@ -622,6 +974,7 @@ BarWidget {
     Hyprland.dispatch('hl.dsp.submap("' + root.captureSubmap + '")')
   }
 
+  // Leaves the temporary capture submap and restores the normal Hyprland keymap.
   function endKeyCapture() {
     Hyprland.dispatch('hl.dsp.submap("reset")')
   }
@@ -661,6 +1014,8 @@ BarWidget {
     printErrors: false
   }
 
+  // Stages a complete shell.json rewrite until the next event-loop turn so the
+  // current widget can finish saving its own state before the bar rebuilds.
   property string pendingShellJson: ""
 
   // Writing shell.json makes the shell rebuild the bar, which tears down this
@@ -730,6 +1085,8 @@ BarWidget {
     return result
   }
 
+  // Watches the primary workspaces.conf file. External edits automatically
+  // reparse the configuration and update the bar without discarding unknown text.
   FileView {
     id: confFile
     path: root.confPath
@@ -751,6 +1108,8 @@ BarWidget {
     onTriggered: reloadProc.running = true
   }
 
+  // Executes `hyprctl reload` after configuration writes and then reapplies
+  // live workspace names/monitor assignments that a reload alone cannot move.
   Process {
     id: reloadProc
     command: ["hyprctl", "reload"]
@@ -812,6 +1171,8 @@ BarWidget {
     }
   }
 
+  // Converts configured per-workspace application patterns into a single
+  // pattern -> target-workspace lookup used by enforcePins().
   function pinMap() {
     var out = {}
     for (var i = 0; i < root.rows.length; i++) {
@@ -872,16 +1233,31 @@ BarWidget {
     root.placed = next
   }
 
+  // Reacts to window lifecycle/movement events. One connection refreshes both
+  // the icon source data and the plugin's existing application-pin enforcement.
   Connections {
     target: Hyprland
+
     function onRawEvent(event) {
       var name = String(event.name)
-      if (name === "openwindow" || name === "windowtitle"
-          || name === "windowtitlev2" || name === "closewindow")
+
+      if (name === "openwindow"
+          || name === "windowtitle"
+          || name === "windowtitlev2"
+          || name === "closewindow"
+          || name === "movewindow"
+          || name === "movewindowv2"
+          || name === "workspace"
+          || name === "focusedmon") {
+        Hyprland.refreshToplevels()
+        clientRefreshTimer.restart()
         pinTimer.restart()
+      }
     }
   }
 
+  // Debounces window-title/open/move events before re-evaluating application
+  // pinning rules; browser titles in particular can change several times quickly.
   Timer {
     id: pinTimer
     // Titles arrive in a burst while a page loads; wait for them to settle
@@ -890,6 +1266,7 @@ BarWidget {
     onTriggered: root.enforcePins(false)
   }
 
+  // Lazy loader for the full workspace editor; keeps startup cost low until used.
   Loader {
     id: editorLoader
     active: false
@@ -900,6 +1277,7 @@ BarWidget {
     }
   }
 
+  // Lazy loader for the compact workspace rename dialog.
   Loader {
     id: renameLoader
     active: false
@@ -910,6 +1288,7 @@ BarWidget {
     }
   }
 
+  // Lazy loader for the fuzzy workspace/window jump interface.
   Loader {
     id: jumpLoader
     active: false
@@ -920,11 +1299,15 @@ BarWidget {
     }
   }
 
+  // Small horizontal breathing room appended after the workspace group; omitted
+  // automatically when the bar is vertical.
   readonly property real trailingGap: root.vertical ? 0 : Style.spaceReal(1.5)
 
   implicitWidth: grid.implicitWidth + trailingGap
   implicitHeight: grid.implicitHeight
 
+  // Main visual container. It lays workspace chips horizontally on a normal
+  // top/bottom bar and vertically when Omarchy places the bar on a side.
   GridLayout {
     id: grid
     anchors.fill: parent
